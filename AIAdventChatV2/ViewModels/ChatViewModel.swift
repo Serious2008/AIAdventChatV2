@@ -44,22 +44,16 @@ class ChatViewModel: ObservableObject {
             handleError("Неверный URL API")
             return
         }
-        
-        // Проверяем интернет соединение
-        guard isConnectedToInternet() else {
-            handleError("Нет подключения к интернету. Проверьте ваше соединение.")
-            return
-        }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("anthropic-2023-06-01", forHTTPHeaderField: "anthropic-version")
-        request.setValue("Bearer \(settings.apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("\(settings.apiKey)", forHTTPHeaderField: "x-api-key")
         request.timeoutInterval = 30.0 // Увеличиваем таймаут
         
         let requestBody: [String: Any] = [
-            "model": "claude-3-5-sonnet-20241022",
+            "model": "claude-3-7-sonnet-20250219",
             "max_tokens": 1000,
             "messages": [
                 [
@@ -103,6 +97,11 @@ class ChatViewModel: ObservableObject {
                 
                 if let httpResponse = response as? HTTPURLResponse {
                     print("HTTP Status Code: \(httpResponse.statusCode)")
+                    print("✅ Response headers: \(httpResponse.allHeaderFields)")
+                    
+                    if let data = data, let errorString = String(data: data, encoding: .utf8) {
+                        print("📄 Response body: \(errorString)")
+                    }
                     
                     if httpResponse.statusCode == 401 {
                         self?.handleError("Неверный API ключ. Проверьте настройки.")
@@ -121,23 +120,6 @@ class ChatViewModel: ObservableObject {
                 self?.processClaudeResponse(data: data)
             }
         }.resume()
-    }
-    
-    private func isConnectedToInternet() -> Bool {
-        // Простая проверка доступности DNS
-        guard let url = URL(string: "https://www.google.com") else { return false }
-        let request = URLRequest(url: url, timeoutInterval: 5.0)
-        
-        var isConnected = false
-        let semaphore = DispatchSemaphore(value: 0)
-        
-        URLSession.shared.dataTask(with: request) { _, _, _ in
-            isConnected = true
-            semaphore.signal()
-        }.resume()
-        
-        _ = semaphore.wait(timeout: .now() + 5.0)
-        return isConnected
     }
     
     private func processClaudeResponse(data: Data) {
