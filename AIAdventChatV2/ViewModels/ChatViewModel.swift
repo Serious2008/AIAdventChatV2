@@ -55,6 +55,18 @@ class ChatViewModel: ObservableObject {
         let requestBody: [String: Any] = [
             "model": "claude-3-7-sonnet-20250219",
             "max_tokens": 1000,
+            "system": """
+                Вы - полезный ассистент. ВСЕГДА отвечайте в формате JSON.
+
+                Обязательно используйте следующий формат для всех ответов:
+                {
+                    "response": "ваш ответ здесь",
+                    "confidence": "высокая/средняя/низкая",
+                    "additional_info": "дополнительная информация при необходимости"
+                }
+
+                Не добавляйте никакой текст до или после JSON. Только чистый JSON объект.
+                """,
             "messages": [
                 [
                     "role": "user",
