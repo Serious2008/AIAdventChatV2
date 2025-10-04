@@ -11,17 +11,63 @@ struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
     @ObservedObject var settings: Settings
     @State private var showingSettings = false
-    
+    @State private var showingGeneratedDocument = false
+
     var body: some View {
         VStack(spacing: 0) {
-            // Заголовок с кнопкой настроек
+            // Заголовок с кнопками
             HStack {
-                Text("Claude Chat")
+                Text(viewModel.conversationMode == .collectingRequirements ? "Сбор требований для ТЗ" : "Claude Chat")
                     .font(.largeTitle)
                     .fontWeight(.bold)
-                
+
                 Spacer()
-                
+
+                // Кнопка режима сбора ТЗ
+                if viewModel.conversationMode == .normal {
+                    Button(action: {
+                        viewModel.startRequirementsCollection()
+                    }) {
+                        HStack {
+                            Image(systemName: "doc.text.fill")
+                            Text("Создать ТЗ")
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.green.opacity(0.2))
+                        .foregroundColor(.green)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Button(action: {
+                        viewModel.switchToNormalMode()
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.left.circle.fill")
+                            Text("Обычный режим")
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.gray.opacity(0.2))
+                        .foregroundColor(.gray)
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                // Кнопка просмотра ТЗ (если есть)
+                if viewModel.generatedDocument != nil {
+                    Button(action: {
+                        showingGeneratedDocument = true
+                    }) {
+                        Image(systemName: "doc.text.magnifyingglass")
+                            .font(.title2)
+                            .foregroundColor(.orange)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 Button(action: {
                     showingSettings = true
                 }) {
@@ -29,6 +75,7 @@ struct ChatView: View {
                         .font(.title2)
                         .foregroundColor(.blue)
                 }
+                .buttonStyle(.plain)
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
@@ -150,6 +197,9 @@ struct ChatView: View {
         .sheet(isPresented: $showingSettings) {
             SettingsView(settings: settings)
         }
+        .sheet(isPresented: $showingGeneratedDocument) {
+            GeneratedDocumentView(document: viewModel.generatedDocument ?? "")
+        }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
@@ -162,6 +212,97 @@ struct ChatView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+            }
+        }
+    }
+}
+
+// MARK: - Generated Document View
+struct GeneratedDocumentView: View {
+    let document: String
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Заголовок
+            HStack {
+                Text("Сгенерированное ТЗ")
+                    .font(.title)
+                    .fontWeight(.bold)
+
+                Spacer()
+
+                Button("Закрыть") {
+                    dismiss()
+                }
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor))
+
+            Divider()
+
+            // Содержимое документа
+            ScrollView {
+                Text(document)
+                    .font(.system(.body, design: .monospaced))
+                    .textSelection(.enabled)
+                    .padding()
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            Divider()
+
+            // Кнопки действий
+            HStack {
+                Button(action: {
+                    copyToClipboard(document)
+                }) {
+                    HStack {
+                        Image(systemName: "doc.on.doc")
+                        Text("Копировать")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.blue.opacity(0.2))
+                    .foregroundColor(.blue)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+
+                Button(action: {
+                    saveToFile(document)
+                }) {
+                    HStack {
+                        Image(systemName: "arrow.down.doc")
+                        Text("Сохранить в файл")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.green.opacity(0.2))
+                    .foregroundColor(.green)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .background(Color(NSColor.controlBackgroundColor))
+        }
+        .frame(minWidth: 600, minHeight: 400)
+    }
+
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func saveToFile(_ text: String) {
+        let savePanel = NSSavePanel()
+        savePanel.allowedContentTypes = [.plainText]
+        savePanel.nameFieldStringValue = "Техническое_задание.md"
+
+        savePanel.begin { response in
+            if response == .OK, let url = savePanel.url {
+                try? text.write(to: url, atomically: true, encoding: .utf8)
             }
         }
     }
