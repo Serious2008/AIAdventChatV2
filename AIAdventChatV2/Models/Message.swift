@@ -19,12 +19,14 @@ struct Message: Identifiable, Codable {
     let isFromUser: Bool
     let timestamp: Date
     var parsedContent: MessageContent?
+    var temperature: Double?
 
-    init(content: String, isFromUser: Bool) {
+    init(content: String, isFromUser: Bool, temperature: Double? = nil) {
         self.id = UUID()
         self.content = content
         self.isFromUser = isFromUser
         self.timestamp = Date()
+        self.temperature = temperature
 
         // Пытаемся распарсить JSON если это не сообщение пользователя
         if !isFromUser {

@@ -84,6 +84,25 @@ struct MessageBubble: View {
                                         .background(Color.blue.opacity(0.05))
                                         .cornerRadius(8)
                                     }
+
+                                    if let temperature = message.temperature {
+                                        HStack {
+                                            Image(systemName: "thermometer.medium")
+                                                .foregroundColor(.purple)
+                                            Text("Температура:")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.secondary)
+                                            Text(String(format: "%.1f", temperature))
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.purple)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(Color.purple.opacity(0.1))
+                                        .cornerRadius(8)
+                                    }
                                 }
                             }
                         } else {

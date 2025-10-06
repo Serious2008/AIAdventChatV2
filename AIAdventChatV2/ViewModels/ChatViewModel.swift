@@ -223,7 +223,7 @@ class ChatViewModel: ObservableObject {
                     if conversationMode == .collectingRequirements {
                         processRequirementsResponse(text: text)
                     } else {
-                        let claudeMessage = Message(content: text, isFromUser: false)
+                        let claudeMessage = Message(content: text, isFromUser: false, temperature: settings.temperature)
                         messages.append(claudeMessage)
                     }
                 } else if let error = json["error"] as? [String: Any],
@@ -243,13 +243,13 @@ class ChatViewModel: ObservableObject {
         guard let jsonData = text.data(using: .utf8),
               let responseJson = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
               let response = responseJson["response"] as? String else {
-            let claudeMessage = Message(content: text, isFromUser: false)
+            let claudeMessage = Message(content: text, isFromUser: false, temperature: settings.temperature)
             messages.append(claudeMessage)
             return
         }
 
         // Добавляем ответ Claude в чат
-        let claudeMessage = Message(content: response, isFromUser: false)
+        let claudeMessage = Message(content: response, isFromUser: false, temperature: settings.temperature)
         messages.append(claudeMessage)
 
         // Проверяем, готов ли документ
