@@ -34,8 +34,8 @@ struct SettingsView: View {
                                 Text("0.0")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Slider(value: $settings.temperature, in: 0.0...1.0, step: 0.1)
-                                Text("1.0")
+                                Slider(value: $settings.temperature, in: 0.0...1.2, step: 0.1)
+                                Text("1.2")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Text(String(format: "%.1f", settings.temperature))
@@ -50,7 +50,7 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
 
-                                HStack(spacing: 16) {
+                                HStack(spacing: 12) {
                                     Button("0.0") { settings.temperature = 0.0 }
                                         .font(.caption2)
                                         .padding(.horizontal, 8)
@@ -73,6 +73,14 @@ struct SettingsView: View {
                                         .padding(.vertical, 4)
                                         .background(settings.temperature == 1.0 ? Color.blue : Color.gray.opacity(0.2))
                                         .foregroundColor(settings.temperature == 1.0 ? .white : .primary)
+                                        .cornerRadius(4)
+
+                                    Button("1.2") { settings.temperature = 1.2 }
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(settings.temperature == 1.2 ? Color.blue : Color.gray.opacity(0.2))
+                                        .foregroundColor(settings.temperature == 1.2 ? .white : .primary)
                                         .cornerRadius(4)
                                 }
                             }
@@ -286,6 +294,8 @@ struct SettingsView: View {
             return "Креативный режим: баланс между точностью и креативностью. Рекомендуется для общения."
         case 0.9...1.0:
             return "Высокая креативность: разнообразные, неожиданные ответы. Для творческих задач, мозгового штурма."
+        case 1.1...1.2:
+            return "Экспериментальный режим: максимальная случайность и непредсказуемость. Для исследований и экспериментов."
         default:
             return "Балансирует между точностью и креативностью ответов."
         }
