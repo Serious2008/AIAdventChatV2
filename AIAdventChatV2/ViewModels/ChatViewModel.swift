@@ -148,6 +148,7 @@ class ChatViewModel: ObservableObject {
         let requestBody: [String: Any] = [
             "model": "claude-3-7-sonnet-20250219",
             "max_tokens": 2000,
+            "temperature": settings.temperature,
             "system": systemPrompt,
             "messages": messagesArray
         ]

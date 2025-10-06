@@ -23,7 +23,64 @@ struct SettingsView: View {
                             .font(.title2)
                             .fontWeight(.bold)
                             .padding(.bottom, 8)
-                        
+
+                        // Temperature настройка
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Temperature (Температура)")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+
+                            HStack {
+                                Text("0.0")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Slider(value: $settings.temperature, in: 0.0...1.0, step: 0.1)
+                                Text("1.0")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(String(format: "%.1f", settings.temperature))
+                                    .font(.body)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.blue)
+                                    .frame(width: 40)
+                            }
+
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(temperatureDescription)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+
+                                HStack(spacing: 16) {
+                                    Button("0.0") { settings.temperature = 0.0 }
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(settings.temperature == 0.0 ? Color.blue : Color.gray.opacity(0.2))
+                                        .foregroundColor(settings.temperature == 0.0 ? .white : .primary)
+                                        .cornerRadius(4)
+
+                                    Button("0.7") { settings.temperature = 0.7 }
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(settings.temperature == 0.7 ? Color.blue : Color.gray.opacity(0.2))
+                                        .foregroundColor(settings.temperature == 0.7 ? .white : .primary)
+                                        .cornerRadius(4)
+
+                                    Button("1.0") { settings.temperature = 1.0 }
+                                        .font(.caption2)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(settings.temperature == 1.0 ? Color.blue : Color.gray.opacity(0.2))
+                                        .foregroundColor(settings.temperature == 1.0 ? .white : .primary)
+                                        .cornerRadius(4)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Claude API Key")
                                 .font(.headline)
@@ -217,5 +274,20 @@ struct SettingsView: View {
                 }
             }
         }.resume()
+    }
+
+    private var temperatureDescription: String {
+        switch settings.temperature {
+        case 0.0...0.3:
+            return "Детерминированный режим: точные, повторяемые ответы. Идеально для фактов, кода, анализа данных."
+        case 0.4...0.6:
+            return "Сбалансированный режим: небольшая вариативность с сохранением точности."
+        case 0.7...0.8:
+            return "Креативный режим: баланс между точностью и креативностью. Рекомендуется для общения."
+        case 0.9...1.0:
+            return "Высокая креативность: разнообразные, неожиданные ответы. Для творческих задач, мозгового штурма."
+        default:
+            return "Балансирует между точностью и креативностью ответов."
+        }
     }
 }
