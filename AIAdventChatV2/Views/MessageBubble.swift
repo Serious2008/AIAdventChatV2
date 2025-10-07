@@ -86,6 +86,134 @@ struct MessageBubble: View {
                                     }
 
                                     // Метрики
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack(spacing: 8) {
+                                            if let temperature = message.temperature {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "thermometer.medium")
+                                                        .foregroundColor(.purple)
+                                                        .font(.caption2)
+                                                    Text(String(format: "%.1f", temperature))
+                                                        .font(.caption2)
+                                                        .fontWeight(.medium)
+                                                        .foregroundColor(.purple)
+                                                }
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.purple.opacity(0.1))
+                                                .cornerRadius(6)
+                                            }
+
+                                            if let responseTime = message.responseTime {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "clock")
+                                                        .foregroundColor(.orange)
+                                                        .font(.caption2)
+                                                    Text(String(format: "%.2fs", responseTime))
+                                                        .font(.caption2)
+                                                        .fontWeight(.medium)
+                                                        .foregroundColor(.orange)
+                                                }
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.orange.opacity(0.1))
+                                                .cornerRadius(6)
+                                            }
+
+                                            if let cost = message.cost, cost > 0 {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "dollarsign.circle")
+                                                        .foregroundColor(.green)
+                                                        .font(.caption2)
+                                                    Text(String(format: "$%.4f", cost))
+                                                        .font(.caption2)
+                                                        .fontWeight(.medium)
+                                                        .foregroundColor(.green)
+                                                }
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.green.opacity(0.1))
+                                                .cornerRadius(6)
+                                            }
+                                        }
+
+                                        HStack(spacing: 8) {
+                                            if let inputTokens = message.inputTokens,
+                                               let outputTokens = message.outputTokens {
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "arrow.left.arrow.right")
+                                                        .foregroundColor(.blue)
+                                                        .font(.caption2)
+                                                    Text("Токены:")
+                                                        .font(.caption2)
+                                                        .foregroundColor(.secondary)
+                                                    Text("\(inputTokens) → \(outputTokens)")
+                                                        .font(.caption2)
+                                                        .fontWeight(.medium)
+                                                        .foregroundColor(.blue)
+                                                }
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.blue.opacity(0.1))
+                                                .cornerRadius(6)
+                                            }
+
+                                            // Скорость генерации токенов
+                                            if let outputTokens = message.outputTokens,
+                                               let responseTime = message.responseTime,
+                                               responseTime > 0 {
+                                                let tokensPerSecond = Double(outputTokens) / responseTime
+                                                HStack(spacing: 4) {
+                                                    Image(systemName: "speedometer")
+                                                        .foregroundColor(.cyan)
+                                                        .font(.caption2)
+                                                    Text("Скорость:")
+                                                        .font(.caption2)
+                                                        .foregroundColor(.secondary)
+                                                    Text(String(format: "%.1f t/s", tokensPerSecond))
+                                                        .font(.caption2)
+                                                        .fontWeight(.medium)
+                                                        .foregroundColor(.cyan)
+                                                }
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(Color.cyan.opacity(0.1))
+                                                .cornerRadius(6)
+                                            }
+                                        }
+                                    }
+
+                                    if let modelName = message.modelName {
+                                        HStack {
+                                            Image(systemName: "cpu")
+                                                .foregroundColor(.gray)
+                                            Text("Модель:")
+                                                .font(.caption)
+                                                .fontWeight(.semibold)
+                                                .foregroundColor(.secondary)
+                                            Text(modelName)
+                                                .font(.caption)
+                                                .fontWeight(.medium)
+                                                .foregroundColor(.primary)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 6)
+                                        .background(Color.gray.opacity(0.1))
+                                        .cornerRadius(8)
+                                    }
+                                }
+                            }
+                        } else {
+                            // Fallback для обычного текста (без JSON парсинга)
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text(message.content)
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color(NSColor.controlColor))
+                                    .clipShape(RoundedRectangle(cornerRadius: 18))
+
+                                // Метрики для обычного текста
+                                VStack(alignment: .leading, spacing: 6) {
                                     HStack(spacing: 8) {
                                         if let temperature = message.temperature {
                                             HStack(spacing: 4) {
@@ -119,23 +247,6 @@ struct MessageBubble: View {
                                             .cornerRadius(6)
                                         }
 
-                                        if let inputTokens = message.inputTokens,
-                                           let outputTokens = message.outputTokens {
-                                            HStack(spacing: 4) {
-                                                Image(systemName: "doc.text")
-                                                    .foregroundColor(.blue)
-                                                    .font(.caption2)
-                                                Text("\(inputTokens)→\(outputTokens)")
-                                                    .font(.caption2)
-                                                    .fontWeight(.medium)
-                                                    .foregroundColor(.blue)
-                                            }
-                                            .padding(.horizontal, 8)
-                                            .padding(.vertical, 4)
-                                            .background(Color.blue.opacity(0.1))
-                                            .cornerRadius(6)
-                                        }
-
                                         if let cost = message.cost, cost > 0 {
                                             HStack(spacing: 4) {
                                                 Image(systemName: "dollarsign.circle")
@@ -153,32 +264,71 @@ struct MessageBubble: View {
                                         }
                                     }
 
-                                    if let modelName = message.modelName {
-                                        HStack {
-                                            Image(systemName: "cpu")
-                                                .foregroundColor(.gray)
-                                            Text("Модель:")
-                                                .font(.caption)
-                                                .fontWeight(.semibold)
-                                                .foregroundColor(.secondary)
-                                            Text(modelName)
-                                                .font(.caption)
-                                                .fontWeight(.medium)
-                                                .foregroundColor(.primary)
+                                    HStack(spacing: 8) {
+                                        if let inputTokens = message.inputTokens,
+                                           let outputTokens = message.outputTokens {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "arrow.left.arrow.right")
+                                                    .foregroundColor(.blue)
+                                                    .font(.caption2)
+                                                Text("Токены:")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                                Text("\(inputTokens) → \(outputTokens)")
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                                    .foregroundColor(.blue)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.blue.opacity(0.1))
+                                            .cornerRadius(6)
                                         }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.gray.opacity(0.1))
-                                        .cornerRadius(8)
+
+                                        // Скорость генерации токенов
+                                        if let outputTokens = message.outputTokens,
+                                           let responseTime = message.responseTime,
+                                           responseTime > 0 {
+                                            let tokensPerSecond = Double(outputTokens) / responseTime
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "speedometer")
+                                                    .foregroundColor(.cyan)
+                                                    .font(.caption2)
+                                                Text("Скорость:")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                                Text(String(format: "%.1f t/s", tokensPerSecond))
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                                    .foregroundColor(.cyan)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.cyan.opacity(0.1))
+                                            .cornerRadius(6)
+                                        }
                                     }
                                 }
+
+                                if let modelName = message.modelName {
+                                    HStack {
+                                        Image(systemName: "cpu")
+                                            .foregroundColor(.gray)
+                                        Text("Модель:")
+                                            .font(.caption)
+                                            .fontWeight(.semibold)
+                                            .foregroundColor(.secondary)
+                                        Text(modelName)
+                                            .font(.caption)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(.primary)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 6)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
                             }
-                        } else {
-                            // Fallback для обычного текста
-                            Text(message.content)
-                                .padding(12)
-                                .background(Color(NSColor.controlColor))
-                                .clipShape(RoundedRectangle(cornerRadius: 18))
                         }
                     }
 
