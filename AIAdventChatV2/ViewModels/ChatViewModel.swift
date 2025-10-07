@@ -23,6 +23,7 @@ class ChatViewModel: ObservableObject {
 
     private let settings: Settings
     private var cancellables = Set<AnyCancellable>()
+    private let huggingFaceService = HuggingFaceService()
 
     init(settings: Settings) {
         self.settings = settings
@@ -59,8 +60,50 @@ class ChatViewModel: ObservableObject {
         currentMessage = ""
         isLoading = true
         errorMessage = nil
-        
-        sendToClaude(message: messageToSend)
+
+        // Выбираем провайдера
+        switch settings.selectedProvider {
+        case .claude:
+            sendToClaude(message: messageToSend)
+        case .huggingface:
+            sendToHuggingFace(message: messageToSend)
+        }
+    }
+
+    private func sendToHuggingFace(message: String) {
+        let startTime = Date()
+
+        huggingFaceService.sendRequest(
+            model: settings.selectedModel,
+            message: message,
+            apiKey: settings.huggingFaceApiKey,
+            temperature: settings.temperature
+        ) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.isLoading = false
+
+                switch result {
+                case .success((let text, let metrics)):
+                    let claudeMessage = Message(
+                        content: text,
+                        isFromUser: false,
+                        temperature: self?.settings.temperature,
+                        metrics: (
+                            responseTime: metrics.responseTime,
+                            inputTokens: metrics.inputTokens,
+                            outputTokens: metrics.outputTokens,
+                            cost: metrics.totalCost,
+                            modelName: metrics.modelName
+                        )
+                    )
+                    self?.messages.append(claudeMessage)
+
+                case .failure(let error):
+                    self?.handleError("Ошибка HuggingFace: \(error.localizedDescription)")
+                    print(error)
+                }
+            }
+        }
     }
     
     private func sendToClaude(message: String) {

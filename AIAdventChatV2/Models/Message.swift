@@ -20,13 +20,26 @@ struct Message: Identifiable, Codable {
     let timestamp: Date
     var parsedContent: MessageContent?
     var temperature: Double?
+    var responseTime: TimeInterval?
+    var inputTokens: Int?
+    var outputTokens: Int?
+    var cost: Double?
+    var modelName: String?
 
-    init(content: String, isFromUser: Bool, temperature: Double? = nil) {
+    init(content: String, isFromUser: Bool, temperature: Double? = nil, metrics: (responseTime: TimeInterval, inputTokens: Int?, outputTokens: Int?, cost: Double?, modelName: String?)? = nil) {
         self.id = UUID()
         self.content = content
         self.isFromUser = isFromUser
         self.timestamp = Date()
         self.temperature = temperature
+
+        if let metrics = metrics {
+            self.responseTime = metrics.responseTime
+            self.inputTokens = metrics.inputTokens
+            self.outputTokens = metrics.outputTokens
+            self.cost = metrics.cost
+            self.modelName = metrics.modelName
+        }
 
         // Пытаемся распарсить JSON если это не сообщение пользователя
         if !isFromUser {

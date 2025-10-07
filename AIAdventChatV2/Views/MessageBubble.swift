@@ -85,22 +85,90 @@ struct MessageBubble: View {
                                         .cornerRadius(8)
                                     }
 
-                                    if let temperature = message.temperature {
+                                    // Метрики
+                                    HStack(spacing: 8) {
+                                        if let temperature = message.temperature {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "thermometer.medium")
+                                                    .foregroundColor(.purple)
+                                                    .font(.caption2)
+                                                Text(String(format: "%.1f", temperature))
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                                    .foregroundColor(.purple)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.purple.opacity(0.1))
+                                            .cornerRadius(6)
+                                        }
+
+                                        if let responseTime = message.responseTime {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "clock")
+                                                    .foregroundColor(.orange)
+                                                    .font(.caption2)
+                                                Text(String(format: "%.2fs", responseTime))
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                                    .foregroundColor(.orange)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.orange.opacity(0.1))
+                                            .cornerRadius(6)
+                                        }
+
+                                        if let inputTokens = message.inputTokens,
+                                           let outputTokens = message.outputTokens {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "doc.text")
+                                                    .foregroundColor(.blue)
+                                                    .font(.caption2)
+                                                Text("\(inputTokens)→\(outputTokens)")
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                                    .foregroundColor(.blue)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.blue.opacity(0.1))
+                                            .cornerRadius(6)
+                                        }
+
+                                        if let cost = message.cost, cost > 0 {
+                                            HStack(spacing: 4) {
+                                                Image(systemName: "dollarsign.circle")
+                                                    .foregroundColor(.green)
+                                                    .font(.caption2)
+                                                Text(String(format: "$%.4f", cost))
+                                                    .font(.caption2)
+                                                    .fontWeight(.medium)
+                                                    .foregroundColor(.green)
+                                            }
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 4)
+                                            .background(Color.green.opacity(0.1))
+                                            .cornerRadius(6)
+                                        }
+                                    }
+
+                                    if let modelName = message.modelName {
                                         HStack {
-                                            Image(systemName: "thermometer.medium")
-                                                .foregroundColor(.purple)
-                                            Text("Температура:")
+                                            Image(systemName: "cpu")
+                                                .foregroundColor(.gray)
+                                            Text("Модель:")
                                                 .font(.caption)
                                                 .fontWeight(.semibold)
                                                 .foregroundColor(.secondary)
-                                            Text(String(format: "%.1f", temperature))
+                                            Text(modelName)
                                                 .font(.caption)
                                                 .fontWeight(.medium)
-                                                .foregroundColor(.purple)
+                                                .foregroundColor(.primary)
                                         }
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
-                                        .background(Color.purple.opacity(0.1))
+                                        .background(Color.gray.opacity(0.1))
                                         .cornerRadius(8)
                                     }
                                 }

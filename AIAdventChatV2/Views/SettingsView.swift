@@ -89,6 +89,50 @@ struct SettingsView: View {
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(12)
 
+                        // Provider Selection
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("AI Provider")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+
+                            Picker("Provider", selection: $settings.selectedProvider) {
+                                ForEach(ModelProvider.allCases, id: \.self) { provider in
+                                    Text(provider.rawValue).tag(provider)
+                                }
+                            }
+                            .pickerStyle(SegmentedPickerStyle())
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        // Model Selection
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Модель")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+
+                            if settings.selectedProvider == .huggingface {
+                                Picker("Модель", selection: $settings.selectedModel) {
+                                    Text("Arch Router 1.5B (маленькая, быстрая)").tag("katanemo/Arch-Router-1.5B")
+                                    Text("Phi-2 (маленькая)").tag("microsoft/phi-2")
+                                    Text("Llama 3.1 8B (средняя)").tag("meta-llama/Llama-3.1-8B-Instruct")
+                                    Text("Mistral 7B (средняя)").tag("mistralai/Mistral-7B-Instruct-v0.3")
+                                    Text("DeepSeek V3 (большая)").tag("deepseek-ai/DeepSeek-V3-0324")
+                                    Text("Qwen2.5 72B (большая)").tag("Qwen/Qwen2.5-72B-Instruct")
+                                }
+                                .pickerStyle(MenuPickerStyle())
+                            } else {
+                                Text("claude-3-7-sonnet-20250219")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        // Claude API Key
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Claude API Key")
                                 .font(.headline)
@@ -136,6 +180,55 @@ struct SettingsView: View {
                                     Image(systemName: "pencil.circle")
                                         .foregroundColor(.orange)
                                     Text("Нажмите на поле ввода и введите ваш API ключ")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        // HuggingFace API Key
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("HuggingFace API Key")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+
+                            HStack {
+                                Group {
+                                    if showAPIKey {
+                                        TextField("hf_...", text: $settings.huggingFaceApiKey)
+                                    } else {
+                                        SecureField("hf_...", text: $settings.huggingFaceApiKey)
+                                    }
+                                }
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(.system(.body, design: .monospaced))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color(NSColor.textBackgroundColor))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                                )
+
+                                Button(action: {
+                                    showAPIKey.toggle()
+                                }) {
+                                    Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                                        .foregroundColor(.blue)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "info.circle")
+                                        .foregroundColor(.blue)
+                                    Text("Получите API ключ на https://huggingface.co/settings/tokens")
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                 }
