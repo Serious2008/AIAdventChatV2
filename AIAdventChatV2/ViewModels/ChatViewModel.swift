@@ -107,6 +107,8 @@ class ChatViewModel: ObservableObject {
     }
     
     private func sendToClaude(message: String) {
+        let startTime = Date()
+
         guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
             handleError("Неверный URL API")
             return
@@ -204,13 +206,15 @@ class ChatViewModel: ObservableObject {
         }
         
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            let responseTime = Date().timeIntervalSince(startTime)
+
             DispatchQueue.main.async {
                 self?.isLoading = false
-                
+
                 if let error = error {
                     let nsError = error as NSError
                     var errorMessage = "Ошибка сети: \(error.localizedDescription)"
-                    
+
                     switch nsError.code {
                     case -1003:
                         errorMessage = "Сервер не найден. Проверьте подключение к интернету и попробуйте снова."
@@ -223,19 +227,19 @@ class ChatViewModel: ObservableObject {
                     default:
                         errorMessage = "Ошибка сети: \(error.localizedDescription)"
                     }
-                    
+
                     self?.handleError(errorMessage)
                     return
                 }
-                
+
                 if let httpResponse = response as? HTTPURLResponse {
                     print("HTTP Status Code: \(httpResponse.statusCode)")
                     print("✅ Response headers: \(httpResponse.allHeaderFields)")
-                    
+
                     if let data = data, let errorString = String(data: data, encoding: .utf8) {
                         print("📄 Response body: \(errorString)")
                     }
-                    
+
                     if httpResponse.statusCode == 401 {
                         self?.handleError("Неверный API ключ. Проверьте настройки.")
                         return
@@ -244,29 +248,63 @@ class ChatViewModel: ObservableObject {
                         return
                     }
                 }
-                
+
                 guard let data = data else {
                     self?.handleError("Нет данных в ответе")
                     return
                 }
-                
-                self?.processClaudeResponse(data: data)
+
+                self?.processClaudeResponse(data: data, responseTime: responseTime)
             }
         }.resume()
     }
     
-    private func processClaudeResponse(data: Data) {
+    private func processClaudeResponse(data: Data, responseTime: TimeInterval) {
         do {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 if let content = json["content"] as? [[String: Any]],
                    let firstContent = content.first,
                    let text = firstContent["text"] as? String {
 
+                    // Извлекаем usage информацию
+                    var inputTokens: Int? = nil
+                    var outputTokens: Int? = nil
+                    var cost: Double? = nil
+
+                    if let usage = json["usage"] as? [String: Any] {
+                        inputTokens = usage["input_tokens"] as? Int
+                        outputTokens = usage["output_tokens"] as? Int
+
+                        // Рассчитываем стоимость для Claude 3.7 Sonnet
+                        if let input = inputTokens, let output = outputTokens {
+                            let inputCost = Double(input) * 0.000003  // $3 per 1M input tokens
+                            let outputCost = Double(output) * 0.000015  // $15 per 1M output tokens
+                            cost = inputCost + outputCost
+                        }
+                    }
+
                     // Если в режиме сбора требований, проверяем JSON ответ
                     if conversationMode == .collectingRequirements {
-                        processRequirementsResponse(text: text)
+                        processRequirementsResponse(
+                            text: text,
+                            responseTime: responseTime,
+                            inputTokens: inputTokens,
+                            outputTokens: outputTokens,
+                            cost: cost
+                        )
                     } else {
-                        let claudeMessage = Message(content: text, isFromUser: false, temperature: settings.temperature)
+                        let claudeMessage = Message(
+                            content: text,
+                            isFromUser: false,
+                            temperature: settings.temperature,
+                            metrics: (
+                                responseTime: responseTime,
+                                inputTokens: inputTokens,
+                                outputTokens: outputTokens,
+                                cost: cost,
+                                modelName: "claude-3-7-sonnet-20250219"
+                            )
+                        )
                         messages.append(claudeMessage)
                     }
                 } else if let error = json["error"] as? [String: Any],
@@ -281,18 +319,46 @@ class ChatViewModel: ObservableObject {
         }
     }
 
-    private func processRequirementsResponse(text: String) {
+    private func processRequirementsResponse(
+        text: String,
+        responseTime: TimeInterval,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        cost: Double?
+    ) {
         // Парсим JSON ответ от Claude
         guard let jsonData = text.data(using: .utf8),
               let responseJson = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
               let response = responseJson["response"] as? String else {
-            let claudeMessage = Message(content: text, isFromUser: false, temperature: settings.temperature)
+            let claudeMessage = Message(
+                content: text,
+                isFromUser: false,
+                temperature: settings.temperature,
+                metrics: (
+                    responseTime: responseTime,
+                    inputTokens: inputTokens,
+                    outputTokens: outputTokens,
+                    cost: cost,
+                    modelName: "claude-3-7-sonnet-20250219"
+                )
+            )
             messages.append(claudeMessage)
             return
         }
 
         // Добавляем ответ Claude в чат
-        let claudeMessage = Message(content: response, isFromUser: false, temperature: settings.temperature)
+        let claudeMessage = Message(
+            content: response,
+            isFromUser: false,
+            temperature: settings.temperature,
+            metrics: (
+                responseTime: responseTime,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
+                cost: cost,
+                modelName: "claude-3-7-sonnet-20250219"
+            )
+        )
         messages.append(claudeMessage)
 
         // Проверяем, готов ли документ
