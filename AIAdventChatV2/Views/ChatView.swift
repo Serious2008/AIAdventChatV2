@@ -160,7 +160,14 @@ struct ChatView: View {
                 TextField("Введите сообщение...", text: $viewModel.currentMessage, axis: .vertical)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .lineLimit(1...4)
-                
+                    .onSubmit {
+                        if !viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                           !viewModel.isLoading &&
+                           settings.isConfigured {
+                            viewModel.sendMessage()
+                        }
+                    }
+
                 Button(action: {
                     viewModel.sendMessage()
                 }) {
@@ -172,6 +179,7 @@ struct ChatView: View {
                         .clipShape(Circle())
                 }
                 .disabled(viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isLoading || !settings.isConfigured)
+                .keyboardShortcut(.return, modifiers: [])
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
