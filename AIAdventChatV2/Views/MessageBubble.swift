@@ -36,12 +36,34 @@ struct MessageBubble: View {
                         // Форматированный контент для Claude
                         if let parsed = message.parsedContent {
                             VStack(alignment: .leading, spacing: 12) {
-                                // Основной ответ
-                                Text(parsed.response)
-                                    .padding(12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color(NSColor.controlColor))
-                                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                                // Основной ответ с дополнительной информацией внутри
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(parsed.response)
+
+                                    if let additionalInfo = parsed.additional_info, !additionalInfo.isEmpty {
+                                        Divider()
+                                            .padding(.vertical, 4)
+
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "info.circle.fill")
+                                                    .foregroundColor(.blue)
+                                                    .font(.body)
+                                                Text("Дополнительно:")
+                                                    .font(.body)
+                                                    .fontWeight(.semibold)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            Text(additionalInfo)
+                                                .font(.body)
+                                                .foregroundColor(.primary)
+                                        }
+                                    }
+                                }
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(NSColor.controlColor))
+                                .clipShape(RoundedRectangle(cornerRadius: 18))
 
                                 // Карточки с дополнительной информацией
                                 VStack(alignment: .leading, spacing: 8) {
@@ -61,27 +83,6 @@ struct MessageBubble: View {
                                         .padding(.horizontal, 10)
                                         .padding(.vertical, 6)
                                         .background(confidenceColor(confidence).opacity(0.1))
-                                        .cornerRadius(8)
-                                    }
-
-                                    if let additionalInfo = parsed.additional_info, !additionalInfo.isEmpty {
-                                        HStack(alignment: .top, spacing: 6) {
-                                            Image(systemName: "info.circle.fill")
-                                                .foregroundColor(.blue)
-                                                .font(.caption)
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                Text("Дополнительно:")
-                                                    .font(.caption)
-                                                    .fontWeight(.semibold)
-                                                    .foregroundColor(.secondary)
-                                                Text(additionalInfo)
-                                                    .font(.caption)
-                                                    .foregroundColor(.primary)
-                                            }
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.blue.opacity(0.05))
                                         .cornerRadius(8)
                                     }
 
