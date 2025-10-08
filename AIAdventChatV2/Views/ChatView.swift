@@ -173,11 +173,9 @@ struct ChatView: View {
                 }) {
                     Image(systemName: "paperplane.fill")
                         .font(.title2)
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40)
-                        .background(viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? Color.gray : Color.blue)
-                        .clipShape(Circle())
+                        .foregroundColor(viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
                 }
+                .buttonStyle(.plain)
                 .disabled(viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isLoading || !settings.isConfigured)
                 .keyboardShortcut(.return, modifiers: [])
             }
