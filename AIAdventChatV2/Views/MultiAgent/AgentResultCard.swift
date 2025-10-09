@@ -16,7 +16,6 @@ struct AgentResultCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Заголовок
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
@@ -26,14 +25,12 @@ struct AgentResultCard: View {
                     .foregroundColor(.secondary)
             }
 
-            // Контент
             Text(content)
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(NSColor.controlColor))
                 .cornerRadius(8)
 
-            // Метрики
             HStack(spacing: 12) {
                 MetricBadge(
                     icon: "clock",
