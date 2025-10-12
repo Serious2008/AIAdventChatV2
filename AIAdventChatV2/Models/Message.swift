@@ -25,13 +25,15 @@ struct Message: Identifiable, Codable {
     var outputTokens: Int?
     var cost: Double?
     var modelName: String?
+    var isSystemMessage: Bool = false
 
-    init(content: String, isFromUser: Bool, temperature: Double? = nil, metrics: (responseTime: TimeInterval, inputTokens: Int?, outputTokens: Int?, cost: Double?, modelName: String?)? = nil) {
+    init(content: String, isFromUser: Bool, temperature: Double? = nil, metrics: (responseTime: TimeInterval, inputTokens: Int?, outputTokens: Int?, cost: Double?, modelName: String?)? = nil, isSystemMessage: Bool = false) {
         self.id = UUID()
         self.content = content
         self.isFromUser = isFromUser
         self.timestamp = Date()
         self.temperature = temperature
+        self.isSystemMessage = isSystemMessage
 
         if let metrics = metrics {
             self.responseTime = metrics.responseTime

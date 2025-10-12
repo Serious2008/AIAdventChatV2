@@ -111,22 +111,52 @@ class ChatViewModel: ObservableObject {
         if settings.summarizationEnabled && settings.isConfigured {
             // Если включена суммаризация и есть HuggingFace API ключ
             if !settings.huggingFaceApiKey.isEmpty {
+                // Добавляем системное сообщение о начале суммаризации
+                let systemMessage = Message(
+                    content: "🔄 Суммаризация текста с помощью HuggingFace (katanemo/Arch-Router-1.5B)...",
+                    isFromUser: false,
+                    isSystemMessage: true
+                )
+                messages.append(systemMessage)
+
                 // Сначала суммаризируем текст
                 huggingFaceService.summarize(
                     text: message,
                     apiKey: settings.huggingFaceApiKey
                 ) { [weak self] result in
                     DispatchQueue.main.async {
+                        guard let self = self else { return }
+
                         switch result {
                         case .success(let summarizedText):
-                            // Отправляем суммаризированный текст в Claude
+                            // Обновляем системное сообщение с результатом
+                            if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                                let compressionRatio = Int((1.0 - Double(summarizedText.count) / Double(message.count)) * 100)
+                                let updatedMessage = Message(
+                                    content: "✅ Текст суммаризирован (сжатие: \(compressionRatio)%) • Модель: katanemo/Arch-Router-1.5B",
+                                    isFromUser: false,
+                                    isSystemMessage: true
+                                )
+                                self.messages[index] = updatedMessage
+                            }
+
                             print("📝 Оригинальный текст: \(message.count) символов")
                             print("📝 Суммаризированный текст: \(summarizedText.count) символов")
-                            self?.sendToClaudeDirectly(message: summarizedText)
+                            self.sendToClaudeDirectly(message: summarizedText)
+
                         case .failure(let error):
-                            // Если суммаризация не удалась, отправляем оригинальный текст
-                            print("⚠️ Ошибка суммаризации, отправляем оригинал: \(error.localizedDescription)")
-                            self?.sendToClaudeDirectly(message: message)
+                            // Обновляем системное сообщение с ошибкой
+                            if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                                let errorMessage = Message(
+                                    content: "⚠️ Ошибка суммаризации, отправляем оригинальный текст",
+                                    isFromUser: false,
+                                    isSystemMessage: true
+                                )
+                                self.messages[index] = errorMessage
+                            }
+
+                            print("⚠️ Ошибка суммаризации: \(error.localizedDescription)")
+                            self.sendToClaudeDirectly(message: message)
                         }
                     }
                 }

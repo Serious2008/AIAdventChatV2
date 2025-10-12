@@ -12,16 +12,29 @@ struct MessageBubble: View {
     
     var body: some View {
         HStack {
-            if message.isFromUser {
+            if message.isSystemMessage {
+                // Системное сообщение (суммаризация и т.д.)
+                HStack(spacing: 8) {
+                    Spacer()
+                    Text(message.content)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(12)
+                    Spacer()
+                }
+            } else if message.isFromUser {
                 Spacer(minLength: 50)
-                
+
                 VStack(alignment: .trailing, spacing: 4) {
                     Text(message.content)
                         .padding(12)
                         .background(Color.blue)
                         .foregroundColor(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
-                    
+
                     Text(formatTime(message.timestamp))
                         .font(.caption2)
                         .foregroundColor(.secondary)
