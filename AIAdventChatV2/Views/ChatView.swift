@@ -13,6 +13,18 @@ struct ChatView: View {
     @State private var showingSettings = false
     @State private var showingGeneratedDocument = false
 
+    private var canSendMessage: Bool {
+        // Проверяем базовые условия
+        guard !viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !viewModel.isLoading,
+              settings.isConfigured else {
+            return false
+        }
+
+        // Разрешаем отправку даже при превышении лимита (только предупреждение)
+        return true
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             // Заголовок с кнопками
@@ -154,16 +166,23 @@ struct ChatView: View {
             }
             
             Divider()
-            
+
+            // Индикатор токенов
+            if !viewModel.currentMessage.isEmpty {
+                TokenIndicatorView(
+                    message: viewModel.currentMessage,
+                    provider: settings.selectedProvider,
+                    model: settings.selectedModel
+                )
+            }
+
             // Поле ввода и кнопка отправки
             HStack(spacing: 12) {
                 TextField("Введите сообщение...", text: $viewModel.currentMessage, axis: .vertical)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .lineLimit(1...4)
                     .onSubmit {
-                        if !viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-                           !viewModel.isLoading &&
-                           settings.isConfigured {
+                        if canSendMessage {
                             viewModel.sendMessage()
                         }
                     }
@@ -173,10 +192,10 @@ struct ChatView: View {
                 }) {
                     Image(systemName: "paperplane.fill")
                         .font(.title2)
-                        .foregroundColor(viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .blue)
+                        .foregroundColor(canSendMessage ? .blue : .gray)
                 }
                 .buttonStyle(.plain)
-                .disabled(viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isLoading || !settings.isConfigured)
+                .disabled(!canSendMessage)
                 .keyboardShortcut(.return, modifiers: [])
             }
             .padding()
