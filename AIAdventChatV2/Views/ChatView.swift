@@ -189,7 +189,7 @@ struct ChatView: View {
             HStack(spacing: 12) {
                 TextField("Введите сообщение...", text: $viewModel.currentMessage, axis: .vertical)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .lineLimit(1...4)
+                    .lineLimit(1...10)
                     .onSubmit {
                         if canSendMessage {
                             viewModel.sendMessage()

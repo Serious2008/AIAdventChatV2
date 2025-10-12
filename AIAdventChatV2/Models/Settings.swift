@@ -12,6 +12,11 @@ enum ModelProvider: String, Codable, CaseIterable {
     case huggingface = "HuggingFace"
 }
 
+enum SummarizationProvider: String, Codable, CaseIterable {
+    case huggingface = "HuggingFace (Бесплатно)"
+    case claude = "Claude (Платно, выше качество)"
+}
+
 class Settings: ObservableObject {
     @Published var apiKey: String {
         didSet {
@@ -55,6 +60,12 @@ class Settings: ObservableObject {
         }
     }
 
+    @Published var summarizationProvider: SummarizationProvider {
+        didSet {
+            UserDefaults.standard.set(summarizationProvider.rawValue, forKey: "SummarizationProvider")
+        }
+    }
+
     init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ClaudeAPIKey") ?? ""
         self.huggingFaceApiKey = UserDefaults.standard.string(forKey: "HuggingFaceAPIKey") ?? ""
@@ -72,6 +83,13 @@ class Settings: ObservableObject {
 
         self.summarizationEnabled = UserDefaults.standard.object(forKey: "SummarizationEnabled") as? Bool ?? false
         self.summarizationMinLength = UserDefaults.standard.object(forKey: "SummarizationMinLength") as? Int ?? 2000
+
+        if let providerString = UserDefaults.standard.string(forKey: "SummarizationProvider"),
+           let provider = SummarizationProvider(rawValue: providerString) {
+            self.summarizationProvider = provider
+        } else {
+            self.summarizationProvider = .huggingface
+        }
     }
 
     var isConfigured: Bool {

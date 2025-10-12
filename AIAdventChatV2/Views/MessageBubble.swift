@@ -29,11 +29,19 @@ struct MessageBubble: View {
                 Spacer(minLength: 50)
 
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text(message.content)
-                        .padding(12)
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 18))
+                    ScrollView {
+                        Text(message.content)
+                            .font(.body)
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(12)
+                    .frame(maxHeight: 400)
+                    .background(Color.blue)
+                    .cornerRadius(18)
 
                     Text(formatTime(message.timestamp))
                         .font(.caption2)

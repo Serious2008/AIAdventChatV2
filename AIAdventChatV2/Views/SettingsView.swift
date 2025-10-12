@@ -141,7 +141,7 @@ struct SettingsView: View {
                                             .font(.headline)
                                             .fontWeight(.semibold)
 
-                                        Text("Сжимайте длинные сообщения с помощью HuggingFace перед отправкой в Claude для экономии токенов")
+                                        Text("Сжимайте длинные сообщения перед отправкой в Claude для экономии токенов")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
@@ -150,14 +150,72 @@ struct SettingsView: View {
 
                                     Toggle("", isOn: $settings.summarizationEnabled)
                                         .labelsHidden()
-                                        .disabled(settings.huggingFaceApiKey.isEmpty)
+                                        .disabled(settings.huggingFaceApiKey.isEmpty && settings.apiKey.isEmpty)
                                 }
 
-                                if settings.summarizationEnabled && !settings.huggingFaceApiKey.isEmpty {
+                                if settings.summarizationEnabled {
                                     Divider()
                                         .padding(.vertical, 4)
 
-                                    VStack(alignment: .leading, spacing: 8) {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        // Выбор провайдера суммаризации
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text("Провайдер суммаризации")
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+
+                                            Picker("", selection: $settings.summarizationProvider) {
+                                                ForEach(SummarizationProvider.allCases, id: \.self) { provider in
+                                                    Text(provider.rawValue).tag(provider)
+                                                }
+                                            }
+                                            .pickerStyle(SegmentedPickerStyle())
+                                            .disabled(
+                                                (settings.summarizationProvider == .huggingface && settings.huggingFaceApiKey.isEmpty) ||
+                                                (settings.summarizationProvider == .claude && settings.apiKey.isEmpty)
+                                            )
+
+                                            // Предупреждение если нет ключа для выбранного провайдера
+                                            if settings.summarizationProvider == .huggingface && settings.huggingFaceApiKey.isEmpty {
+                                                HStack {
+                                                    Image(systemName: "exclamationmark.triangle")
+                                                        .foregroundColor(.orange)
+                                                    Text("Требуется HuggingFace API ключ")
+                                                        .font(.caption)
+                                                        .foregroundColor(.orange)
+                                                }
+                                            }
+
+                                            if settings.summarizationProvider == .claude && settings.apiKey.isEmpty {
+                                                HStack {
+                                                    Image(systemName: "exclamationmark.triangle")
+                                                        .foregroundColor(.orange)
+                                                    Text("Требуется Claude API ключ")
+                                                        .font(.caption)
+                                                        .foregroundColor(.orange)
+                                                }
+                                            }
+
+                                            // Информация о выбранном провайдере
+                                            HStack {
+                                                Image(systemName: "info.circle")
+                                                    .foregroundColor(.blue)
+                                                    .font(.caption)
+                                                if settings.summarizationProvider == .huggingface {
+                                                    Text("Бесплатная суммаризация через katanemo/Arch-Router-1.5B")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                } else {
+                                                    Text("Качественная суммаризация через Claude (расход токенов)")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                            }
+                                        }
+
+                                        Divider()
+                                            .padding(.vertical, 4)
+
                                         Text("Минимальная длина для суммаризации")
                                             .font(.subheadline)
                                             .fontWeight(.medium)
@@ -217,16 +275,6 @@ struct SettingsView: View {
                                                 .foregroundColor(settings.summarizationMinLength == 3000 ? .white : .primary)
                                                 .cornerRadius(4)
                                         }
-                                    }
-                                }
-
-                                if settings.huggingFaceApiKey.isEmpty {
-                                    HStack {
-                                        Image(systemName: "exclamationmark.triangle")
-                                            .foregroundColor(.orange)
-                                        Text("Требуется HuggingFace API ключ")
-                                            .font(.caption)
-                                            .foregroundColor(.orange)
                                     }
                                 }
                             }

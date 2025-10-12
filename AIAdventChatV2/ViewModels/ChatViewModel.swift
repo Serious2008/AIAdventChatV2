@@ -26,6 +26,7 @@ class ChatViewModel: ObservableObject {
     private let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
+    private let claudeService = ClaudeService()
 
     init(settings: Settings) {
         self.settings = settings
@@ -111,92 +112,180 @@ class ChatViewModel: ObservableObject {
     private func sendToClaude(message: String) {
         // Проверяем, нужна ли суммаризация
         if settings.summarizationEnabled && settings.isConfigured {
-            // Если включена суммаризация и есть HuggingFace API ключ
-            if !settings.huggingFaceApiKey.isEmpty {
-                // Проверяем длину текста
-                if message.count < settings.summarizationMinLength {
-                    // Текст слишком короткий, пропускаем суммаризацию
-                    print("⏭️ Текст слишком короткий (\(message.count) символов), минимум: \(settings.summarizationMinLength)")
-                    loadingMessage = "Claude печатает..."
-                    sendToClaudeDirectly(message: message)
-                    return
-                }
-
-                // Устанавливаем сообщение о суммаризации
-                loadingMessage = "Суммаризация текста..."
-                summarizationProgress = "Подготовка..."
-
-                // Добавляем системное сообщение о начале суммаризации
-                let systemMessage = Message(
-                    content: "🔄 Суммаризация текста с помощью HuggingFace (katanemo/Arch-Router-1.5B)...",
-                    isFromUser: false,
-                    isSystemMessage: true
-                )
-                messages.append(systemMessage)
-
-                // Сначала суммаризируем текст
-                huggingFaceService.summarize(
-                    text: message,
-                    apiKey: settings.huggingFaceApiKey,
-                    progressCallback: { [weak self] progress in
-                        DispatchQueue.main.async {
-                            self?.summarizationProgress = progress
-                            self?.loadingMessage = "Суммаризация: \(progress)"
-                        }
-                    }
-                ) { [weak self] result in
-                    DispatchQueue.main.async {
-                        guard let self = self else { return }
-
-                        switch result {
-                        case .success(let summarizedText):
-                            // Обновляем системное сообщение с результатом
-                            if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
-                                let compressionRatio = Int((1.0 - Double(summarizedText.count) / Double(message.count)) * 100)
-                                let updatedMessage = Message(
-                                    content: "✅ Текст суммаризирован (сжатие: \(compressionRatio)%) • Модель: katanemo/Arch-Router-1.5B",
-                                    isFromUser: false,
-                                    isSystemMessage: true
-                                )
-                                self.messages[index] = updatedMessage
-                            }
-
-                            print("📝 Оригинальный текст: \(message.count) символов")
-                            print("📝 Суммаризированный текст: \(summarizedText.count) символов")
-
-                            // Сбрасываем прогресс суммаризации и меняем сообщение
-                            self.summarizationProgress = nil
-                            self.loadingMessage = "Claude печатает..."
-
-                            self.sendToClaudeDirectly(message: summarizedText)
-
-                        case .failure(let error):
-                            // Обновляем системное сообщение с ошибкой
-                            if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
-                                let errorMessage = Message(
-                                    content: "⚠️ Ошибка суммаризации, отправляем оригинальный текст",
-                                    isFromUser: false,
-                                    isSystemMessage: true
-                                )
-                                self.messages[index] = errorMessage
-                            }
-
-                            print("⚠️ Ошибка суммаризации: \(error.localizedDescription)")
-
-                            // Сбрасываем прогресс и меняем сообщение
-                            self.summarizationProgress = nil
-                            self.loadingMessage = "Claude печатает..."
-
-                            self.sendToClaudeDirectly(message: message)
-                        }
-                    }
-                }
+            // Проверяем длину текста
+            if message.count < settings.summarizationMinLength {
+                // Текст слишком короткий, пропускаем суммаризацию
+                print("⏭️ Текст слишком короткий (\(message.count) символов), минимум: \(settings.summarizationMinLength)")
+                loadingMessage = "Claude печатает..."
+                sendToClaudeDirectly(message: message)
                 return
+            }
+
+            // Выбираем провайдера суммаризации
+            switch settings.summarizationProvider {
+            case .huggingface:
+                if !settings.huggingFaceApiKey.isEmpty {
+                    summarizeWithHuggingFace(message: message)
+                    return
+                } else {
+                    print("⚠️ HuggingFace API ключ не найден, пропускаем суммаризацию")
+                }
+            case .claude:
+                if !settings.apiKey.isEmpty {
+                    summarizeWithClaude(message: message)
+                    return
+                } else {
+                    print("⚠️ Claude API ключ не найден, пропускаем суммаризацию")
+                }
             }
         }
 
         // Если суммаризация не включена или нет ключа, отправляем напрямую
         sendToClaudeDirectly(message: message)
+    }
+
+    private func summarizeWithHuggingFace(message: String) {
+        // Устанавливаем сообщение о суммаризации
+        loadingMessage = "Суммаризация текста..."
+        summarizationProgress = "Подготовка..."
+
+        // Добавляем системное сообщение о начале суммаризации
+        let systemMessage = Message(
+            content: "🔄 Суммаризация текста с помощью HuggingFace (katanemo/Arch-Router-1.5B)...",
+            isFromUser: false,
+            isSystemMessage: true
+        )
+        messages.append(systemMessage)
+
+        // Сначала суммаризируем текст
+        huggingFaceService.summarize(
+            text: message,
+            apiKey: settings.huggingFaceApiKey,
+            progressCallback: { [weak self] progress in
+                DispatchQueue.main.async {
+                    self?.summarizationProgress = progress
+                    self?.loadingMessage = "Суммаризация: \(progress)"
+                }
+            }
+        ) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                switch result {
+                case .success(let summarizedText):
+                    // Обновляем системное сообщение с результатом
+                    if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                        let compressionRatio = Int((1.0 - Double(summarizedText.count) / Double(message.count)) * 100)
+                        let updatedMessage = Message(
+                            content: "✅ Текст суммаризирован (сжатие: \(compressionRatio)%) • Модель: katanemo/Arch-Router-1.5B",
+                            isFromUser: false,
+                            isSystemMessage: true
+                        )
+                        self.messages[index] = updatedMessage
+                    }
+
+                    print("📝 Оригинальный текст: \(message.count) символов")
+                    print("📝 Суммаризированный текст: \(summarizedText.count) символов")
+
+                    // Сбрасываем прогресс суммаризации и меняем сообщение
+                    self.summarizationProgress = nil
+                    self.loadingMessage = "Claude печатает..."
+
+                    self.sendToClaudeDirectly(message: summarizedText)
+
+                case .failure(let error):
+                    // Обновляем системное сообщение с ошибкой
+                    if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                        let errorMessage = Message(
+                            content: "⚠️ Ошибка суммаризации, отправляем оригинальный текст",
+                            isFromUser: false,
+                            isSystemMessage: true
+                        )
+                        self.messages[index] = errorMessage
+                    }
+
+                    print("⚠️ Ошибка суммаризации: \(error.localizedDescription)")
+
+                    // Сбрасываем прогресс и меняем сообщение
+                    self.summarizationProgress = nil
+                    self.loadingMessage = "Claude печатает..."
+
+                    self.sendToClaudeDirectly(message: message)
+                }
+            }
+        }
+    }
+
+    private func summarizeWithClaude(message: String) {
+        // Устанавливаем сообщение о суммаризации
+        loadingMessage = "Суммаризация текста..."
+        summarizationProgress = "Подготовка..."
+
+        // Добавляем системное сообщение о начале суммаризации
+        let systemMessage = Message(
+            content: "🔄 Суммаризация текста с помощью Claude (claude-3-7-sonnet-20250219)...",
+            isFromUser: false,
+            isSystemMessage: true
+        )
+        messages.append(systemMessage)
+
+        // Сначала суммаризируем текст
+        claudeService.summarize(
+            text: message,
+            apiKey: settings.apiKey,
+            progressCallback: { [weak self] progress in
+                DispatchQueue.main.async {
+                    self?.summarizationProgress = progress
+                    self?.loadingMessage = "Суммаризация: \(progress)"
+                }
+            }
+        ) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                switch result {
+                case .success(let summarizedText):
+                    // Обновляем системное сообщение с результатом
+                    if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                        let compressionRatio = Int((1.0 - Double(summarizedText.count) / Double(message.count)) * 100)
+                        let updatedMessage = Message(
+                            content: "✅ Текст суммаризирован (сжатие: \(compressionRatio)%) • Модель: claude-3-7-sonnet-20250219",
+                            isFromUser: false,
+                            isSystemMessage: true
+                        )
+                        self.messages[index] = updatedMessage
+                    }
+
+                    print("📝 Оригинальный текст: \(message.count) символов")
+                    print("📝 Суммаризированный текст: \(summarizedText.count) символов")
+
+                    // Сбрасываем прогресс суммаризации и меняем сообщение
+                    self.summarizationProgress = nil
+                    self.loadingMessage = "Claude печатает..."
+
+                    self.sendToClaudeDirectly(message: summarizedText)
+
+                case .failure(let error):
+                    // Обновляем системное сообщение с ошибкой
+                    if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                        let errorMessage = Message(
+                            content: "⚠️ Ошибка суммаризации, отправляем оригинальный текст",
+                            isFromUser: false,
+                            isSystemMessage: true
+                        )
+                        self.messages[index] = errorMessage
+                    }
+
+                    print("⚠️ Ошибка суммаризации: \(error.localizedDescription)")
+
+                    // Сбрасываем прогресс и меняем сообщение
+                    self.summarizationProgress = nil
+                    self.loadingMessage = "Claude печатает..."
+
+                    self.sendToClaudeDirectly(message: message)
+                }
+            }
+        }
     }
 
     private func sendToClaudeDirectly(message: String) {
