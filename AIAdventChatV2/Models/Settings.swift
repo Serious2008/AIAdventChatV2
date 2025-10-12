@@ -49,6 +49,12 @@ class Settings: ObservableObject {
         }
     }
 
+    @Published var summarizationMinLength: Int {
+        didSet {
+            UserDefaults.standard.set(summarizationMinLength, forKey: "SummarizationMinLength")
+        }
+    }
+
     init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ClaudeAPIKey") ?? ""
         self.huggingFaceApiKey = UserDefaults.standard.string(forKey: "HuggingFaceAPIKey") ?? ""
@@ -65,6 +71,7 @@ class Settings: ObservableObject {
         self.selectedModel = defaultModel
 
         self.summarizationEnabled = UserDefaults.standard.object(forKey: "SummarizationEnabled") as? Bool ?? false
+        self.summarizationMinLength = UserDefaults.standard.object(forKey: "SummarizationMinLength") as? Int ?? 2000
     }
 
     var isConfigured: Bool {

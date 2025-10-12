@@ -153,6 +153,73 @@ struct SettingsView: View {
                                         .disabled(settings.huggingFaceApiKey.isEmpty)
                                 }
 
+                                if settings.summarizationEnabled && !settings.huggingFaceApiKey.isEmpty {
+                                    Divider()
+                                        .padding(.vertical, 4)
+
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Минимальная длина для суммаризации")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+
+                                        HStack {
+                                            Slider(value: Binding(
+                                                get: { Double(settings.summarizationMinLength) },
+                                                set: { settings.summarizationMinLength = Int($0) }
+                                            ), in: 500...5000, step: 500)
+
+                                            Text("\(settings.summarizationMinLength)")
+                                                .font(.caption)
+                                                .fontWeight(.bold)
+                                                .foregroundColor(.blue)
+                                                .frame(width: 50)
+                                        }
+
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "info.circle")
+                                                .foregroundColor(.blue)
+                                                .font(.caption)
+                                            Text("Суммаризация применяется только к текстам длиннее \(settings.summarizationMinLength) символов (~\(settings.summarizationMinLength/4) токенов)")
+                                                .font(.caption)
+                                                .foregroundColor(.secondary)
+                                        }
+
+                                        HStack(spacing: 12) {
+                                            Button("500") { settings.summarizationMinLength = 500 }
+                                                .font(.caption2)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(settings.summarizationMinLength == 500 ? Color.blue : Color.gray.opacity(0.2))
+                                                .foregroundColor(settings.summarizationMinLength == 500 ? .white : .primary)
+                                                .cornerRadius(4)
+
+                                            Button("1000") { settings.summarizationMinLength = 1000 }
+                                                .font(.caption2)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(settings.summarizationMinLength == 1000 ? Color.blue : Color.gray.opacity(0.2))
+                                                .foregroundColor(settings.summarizationMinLength == 1000 ? .white : .primary)
+                                                .cornerRadius(4)
+
+                                            Button("2000") { settings.summarizationMinLength = 2000 }
+                                                .font(.caption2)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(settings.summarizationMinLength == 2000 ? Color.blue : Color.gray.opacity(0.2))
+                                                .foregroundColor(settings.summarizationMinLength == 2000 ? .white : .primary)
+                                                .cornerRadius(4)
+
+                                            Button("3000") { settings.summarizationMinLength = 3000 }
+                                                .font(.caption2)
+                                                .padding(.horizontal, 8)
+                                                .padding(.vertical, 4)
+                                                .background(settings.summarizationMinLength == 3000 ? Color.blue : Color.gray.opacity(0.2))
+                                                .foregroundColor(settings.summarizationMinLength == 3000 ? .white : .primary)
+                                                .cornerRadius(4)
+                                        }
+                                    }
+                                }
+
                                 if settings.huggingFaceApiKey.isEmpty {
                                     HStack {
                                         Image(systemName: "exclamationmark.triangle")

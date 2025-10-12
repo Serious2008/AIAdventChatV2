@@ -111,6 +111,14 @@ class ChatViewModel: ObservableObject {
         if settings.summarizationEnabled && settings.isConfigured {
             // Если включена суммаризация и есть HuggingFace API ключ
             if !settings.huggingFaceApiKey.isEmpty {
+                // Проверяем длину текста
+                if message.count < settings.summarizationMinLength {
+                    // Текст слишком короткий, пропускаем суммаризацию
+                    print("⏭️ Текст слишком короткий (\(message.count) символов), минимум: \(settings.summarizationMinLength)")
+                    sendToClaudeDirectly(message: message)
+                    return
+                }
+
                 // Добавляем системное сообщение о начале суммаризации
                 let systemMessage = Message(
                     content: "🔄 Суммаризация текста с помощью HuggingFace (katanemo/Arch-Router-1.5B)...",
