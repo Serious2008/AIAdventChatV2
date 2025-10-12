@@ -140,11 +140,20 @@ struct ChatView: View {
                             HStack {
                                 ProgressView()
                                     .scaleEffect(0.8)
-                                Text("Claude печатает...")
-                                    .foregroundColor(.secondary)
-                                    .font(.caption)
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(viewModel.loadingMessage)
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+
+                                    if let progress = viewModel.summarizationProgress {
+                                        Text(progress)
+                                            .foregroundColor(.blue)
+                                            .font(.caption2)
+                                    }
+                                }
                             }
                             .padding()
+                            .id("loading")
                         }
                     }
                     .padding()

@@ -173,10 +173,159 @@ class HuggingFaceService {
         return text.count / 4
     }
 
-    // Метод для суммаризации текста перед отправкой в Claude
+    // Разбиение текста на чанки с учетом размера контекстного окна
+    private func splitIntoChunks(_ text: String, maxChunkSize: Int = 6000) -> [String] {
+        // Разбиваем текст на предложения для лучшего качества
+        let sentences = text.components(separatedBy: CharacterSet(charactersIn: ".!?\n"))
+        var chunks: [String] = []
+        var currentChunk = ""
+
+        for sentence in sentences {
+            let trimmedSentence = sentence.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmedSentence.isEmpty { continue }
+
+            let sentenceWithPunctuation = trimmedSentence + "."
+
+            // Если добавление предложения превысит размер чанка
+            if (currentChunk.count + sentenceWithPunctuation.count) > maxChunkSize {
+                if !currentChunk.isEmpty {
+                    chunks.append(currentChunk.trimmingCharacters(in: .whitespacesAndNewlines))
+                    currentChunk = ""
+                }
+
+                // Если само предложение больше maxChunkSize, делим его
+                if sentenceWithPunctuation.count > maxChunkSize {
+                    let words = sentenceWithPunctuation.components(separatedBy: " ")
+                    var wordChunk = ""
+                    for word in words {
+                        if (wordChunk.count + word.count + 1) > maxChunkSize {
+                            if !wordChunk.isEmpty {
+                                chunks.append(wordChunk.trimmingCharacters(in: .whitespacesAndNewlines))
+                            }
+                            wordChunk = word + " "
+                        } else {
+                            wordChunk += word + " "
+                        }
+                    }
+                    if !wordChunk.isEmpty {
+                        currentChunk = wordChunk
+                    }
+                } else {
+                    currentChunk = sentenceWithPunctuation + " "
+                }
+            } else {
+                currentChunk += sentenceWithPunctuation + " "
+            }
+        }
+
+        // Добавляем последний чанк
+        if !currentChunk.isEmpty {
+            chunks.append(currentChunk.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+
+        return chunks
+    }
+
+    // Метод для суммаризации текста перед отправкой в Claude (с поддержкой Sequential Chunking)
     func summarize(
         text: String,
         apiKey: String,
+        progressCallback: ((String) -> Void)? = nil,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        // Максимальный размер чанка (примерно 1500 токенов = 6000 символов)
+        let maxChunkSize = 6000
+
+        // Если текст помещается в один чанк, суммаризируем напрямую
+        if text.count <= maxChunkSize {
+            summarizeChunk(
+                chunk: text,
+                apiKey: apiKey,
+                isFirstChunk: true,
+                isLastChunk: true,
+                isFinalSummary: false,
+                completion: completion
+            )
+            return
+        }
+
+        // Разбиваем текст на чанки
+        let chunks = splitIntoChunks(text, maxChunkSize: maxChunkSize)
+        print("📦 Текст разбит на \(chunks.count) чанков для суммаризации")
+        progressCallback?("Разбито на \(chunks.count) чанков")
+
+        // Последовательная суммаризация чанков
+        summarizeChunksSequentially(chunks: chunks, apiKey: apiKey, progressCallback: progressCallback, completion: completion)
+    }
+
+    // Последовательная суммаризация чанков
+    private func summarizeChunksSequentially(
+        chunks: [String],
+        apiKey: String,
+        progressCallback: ((String) -> Void)?,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        var summarizedChunks: [String] = []
+        var currentIndex = 0
+
+        func summarizeNextChunk() {
+            guard currentIndex < chunks.count else {
+                // Все чанки суммаризированы, объединяем результаты
+                let combinedSummary = summarizedChunks.joined(separator: " ")
+
+                // Если результат все еще слишком длинный, делаем финальную суммаризацию
+                if combinedSummary.count > 6000 {
+                    print("📝 Финальная суммаризация объединенного результата")
+                    progressCallback?("Финальная суммаризация")
+                    summarizeChunk(
+                        chunk: combinedSummary,
+                        apiKey: apiKey,
+                        isFirstChunk: true,
+                        isLastChunk: true,
+                        isFinalSummary: true,
+                        completion: completion
+                    )
+                } else {
+                    completion(.success(combinedSummary))
+                }
+                return
+            }
+
+            let chunk = chunks[currentIndex]
+            let isFirstChunk = (currentIndex == 0)
+            let isLastChunk = (currentIndex == chunks.count - 1)
+
+            print("📄 Суммаризация чанка \(currentIndex + 1)/\(chunks.count)")
+            progressCallback?("Чанк \(currentIndex + 1)/\(chunks.count)")
+
+            summarizeChunk(
+                chunk: chunk,
+                apiKey: apiKey,
+                isFirstChunk: isFirstChunk,
+                isLastChunk: isLastChunk,
+                isFinalSummary: false
+            ) { result in
+                switch result {
+                case .success(let summary):
+                    summarizedChunks.append(summary)
+                    currentIndex += 1
+                    summarizeNextChunk()
+                case .failure(let error):
+                    completion(.failure(error))
+                }
+            }
+        }
+
+        summarizeNextChunk()
+    }
+
+    // Метод для суммаризации одного чанка текста
+    private func summarizeChunk(
+        chunk: String,
+        apiKey: String,
+        isFirstChunk: Bool,
+        isLastChunk: Bool,
+        isFinalSummary: Bool,
         completion: @escaping (Result<String, Error>) -> Void
     ) {
         // Используем легкую модель для суммаризации
@@ -193,12 +342,22 @@ class HuggingFaceService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 30.0
 
-        let summarizationPrompt = """
-        Summarize the following text concisely, keeping the main points and key information.
-        Keep it brief but informative. Write in the same language as the original text:
+        let summarizationPrompt: String
+        if isFinalSummary {
+            summarizationPrompt = """
+            Create a final comprehensive summary by combining the following partial summaries.
+            Keep all important information and write in the same language as the original text:
 
-        \(text)
-        """
+            \(chunk)
+            """
+        } else {
+            summarizationPrompt = """
+            Summarize the following text concisely, keeping the main points and key information.
+            Keep it brief but informative. Write in the same language as the original text:
+
+            \(chunk)
+            """
+        }
 
         let requestBody: [String: Any] = [
             "model": summarizationModel,

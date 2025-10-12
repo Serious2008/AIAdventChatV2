@@ -20,6 +20,8 @@ class ChatViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var conversationMode: ConversationMode = .normal
     @Published var generatedDocument: String?
+    @Published var loadingMessage: String = "Claude печатает..."
+    @Published var summarizationProgress: String?
 
     private let settings: Settings
     private var cancellables = Set<AnyCancellable>()
@@ -115,9 +117,14 @@ class ChatViewModel: ObservableObject {
                 if message.count < settings.summarizationMinLength {
                     // Текст слишком короткий, пропускаем суммаризацию
                     print("⏭️ Текст слишком короткий (\(message.count) символов), минимум: \(settings.summarizationMinLength)")
+                    loadingMessage = "Claude печатает..."
                     sendToClaudeDirectly(message: message)
                     return
                 }
+
+                // Устанавливаем сообщение о суммаризации
+                loadingMessage = "Суммаризация текста..."
+                summarizationProgress = "Подготовка..."
 
                 // Добавляем системное сообщение о начале суммаризации
                 let systemMessage = Message(
@@ -130,7 +137,13 @@ class ChatViewModel: ObservableObject {
                 // Сначала суммаризируем текст
                 huggingFaceService.summarize(
                     text: message,
-                    apiKey: settings.huggingFaceApiKey
+                    apiKey: settings.huggingFaceApiKey,
+                    progressCallback: { [weak self] progress in
+                        DispatchQueue.main.async {
+                            self?.summarizationProgress = progress
+                            self?.loadingMessage = "Суммаризация: \(progress)"
+                        }
+                    }
                 ) { [weak self] result in
                     DispatchQueue.main.async {
                         guard let self = self else { return }
@@ -150,6 +163,11 @@ class ChatViewModel: ObservableObject {
 
                             print("📝 Оригинальный текст: \(message.count) символов")
                             print("📝 Суммаризированный текст: \(summarizedText.count) символов")
+
+                            // Сбрасываем прогресс суммаризации и меняем сообщение
+                            self.summarizationProgress = nil
+                            self.loadingMessage = "Claude печатает..."
+
                             self.sendToClaudeDirectly(message: summarizedText)
 
                         case .failure(let error):
@@ -164,6 +182,11 @@ class ChatViewModel: ObservableObject {
                             }
 
                             print("⚠️ Ошибка суммаризации: \(error.localizedDescription)")
+
+                            // Сбрасываем прогресс и меняем сообщение
+                            self.summarizationProgress = nil
+                            self.loadingMessage = "Claude печатает..."
+
                             self.sendToClaudeDirectly(message: message)
                         }
                     }
