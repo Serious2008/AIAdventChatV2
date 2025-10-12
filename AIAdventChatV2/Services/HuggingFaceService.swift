@@ -172,4 +172,94 @@ class HuggingFaceService {
     private func estimateTokens(_ text: String) -> Int {
         return text.count / 4
     }
+
+    // Метод для суммаризации текста перед отправкой в Claude
+    func summarize(
+        text: String,
+        apiKey: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        // Используем легкую модель для суммаризации
+        let summarizationModel = "katanemo/Arch-Router-1.5B"
+
+        guard let url = URL(string: "https://router.huggingface.co/v1/chat/completions") else {
+            completion(.failure(NSError(domain: "HuggingFaceService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неверный URL"])))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30.0
+
+        let summarizationPrompt = """
+        Summarize the following text concisely, keeping the main points and key information.
+        Keep it brief but informative. Write in the same language as the original text:
+
+        \(text)
+        """
+
+        let requestBody: [String: Any] = [
+            "model": summarizationModel,
+            "messages": [
+                [
+                    "role": "user",
+                    "content": summarizationPrompt
+                ]
+            ],
+            "temperature": 0.3,
+            "max_tokens": 300
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(NSError(domain: "HuggingFaceService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                return
+            }
+
+            // Проверяем HTTP статус
+            if let httpResponse = response as? HTTPURLResponse {
+                if httpResponse.statusCode >= 400 {
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        completion(.failure(NSError(domain: "HuggingFaceService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Ошибка суммаризации (\(httpResponse.statusCode)): \(responseString)"])))
+                    } else {
+                        completion(.failure(NSError(domain: "HuggingFaceService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Ошибка суммаризации: \(httpResponse.statusCode)"])))
+                    }
+                    return
+                }
+            }
+
+            // Парсим ответ
+            do {
+                let chatResponse = try JSONDecoder().decode(HuggingFaceChatResponse.self, from: data)
+
+                if let firstChoice = chatResponse.choices.first {
+                    let summarizedText = firstChoice.message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    completion(.success(summarizedText))
+                    return
+                }
+
+                completion(.failure(NSError(domain: "HuggingFaceService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Пустой ответ при суммаризации"])))
+            } catch {
+                if let responseString = String(data: data, encoding: .utf8) {
+                    completion(.failure(NSError(domain: "HuggingFaceService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Ошибка парсинга суммаризации: \(error.localizedDescription)\nОтвет: \(responseString)"])))
+                } else {
+                    completion(.failure(NSError(domain: "HuggingFaceService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Не удалось распарсить ответ суммаризации: \(error.localizedDescription)"])))
+                }
+            }
+        }.resume()
+    }
 }

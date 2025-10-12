@@ -107,6 +107,38 @@ class ChatViewModel: ObservableObject {
     }
     
     private func sendToClaude(message: String) {
+        // Проверяем, нужна ли суммаризация
+        if settings.summarizationEnabled && settings.isConfigured {
+            // Если включена суммаризация и есть HuggingFace API ключ
+            if !settings.huggingFaceApiKey.isEmpty {
+                // Сначала суммаризируем текст
+                huggingFaceService.summarize(
+                    text: message,
+                    apiKey: settings.huggingFaceApiKey
+                ) { [weak self] result in
+                    DispatchQueue.main.async {
+                        switch result {
+                        case .success(let summarizedText):
+                            // Отправляем суммаризированный текст в Claude
+                            print("📝 Оригинальный текст: \(message.count) символов")
+                            print("📝 Суммаризированный текст: \(summarizedText.count) символов")
+                            self?.sendToClaudeDirectly(message: summarizedText)
+                        case .failure(let error):
+                            // Если суммаризация не удалась, отправляем оригинальный текст
+                            print("⚠️ Ошибка суммаризации, отправляем оригинал: \(error.localizedDescription)")
+                            self?.sendToClaudeDirectly(message: message)
+                        }
+                    }
+                }
+                return
+            }
+        }
+
+        // Если суммаризация не включена или нет ключа, отправляем напрямую
+        sendToClaudeDirectly(message: message)
+    }
+
+    private func sendToClaudeDirectly(message: String) {
         let startTime = Date()
 
         guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {

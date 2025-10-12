@@ -43,6 +43,12 @@ class Settings: ObservableObject {
         }
     }
 
+    @Published var summarizationEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(summarizationEnabled, forKey: "SummarizationEnabled")
+        }
+    }
+
     init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ClaudeAPIKey") ?? ""
         self.huggingFaceApiKey = UserDefaults.standard.string(forKey: "HuggingFaceAPIKey") ?? ""
@@ -57,6 +63,8 @@ class Settings: ObservableObject {
 
         let defaultModel = UserDefaults.standard.string(forKey: "SelectedModel") ?? "katanemo/Arch-Router-1.5B"
         self.selectedModel = defaultModel
+
+        self.summarizationEnabled = UserDefaults.standard.object(forKey: "SummarizationEnabled") as? Bool ?? false
     }
 
     var isConfigured: Bool {

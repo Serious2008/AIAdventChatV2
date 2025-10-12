@@ -132,6 +132,42 @@ struct SettingsView: View {
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(12)
 
+                        // Summarization Toggle (только для Claude)
+                        if settings.selectedProvider == .claude {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Суммаризация перед отправкой")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+
+                                        Text("Сжимайте длинные сообщения с помощью HuggingFace перед отправкой в Claude для экономии токенов")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    Toggle("", isOn: $settings.summarizationEnabled)
+                                        .labelsHidden()
+                                        .disabled(settings.huggingFaceApiKey.isEmpty)
+                                }
+
+                                if settings.huggingFaceApiKey.isEmpty {
+                                    HStack {
+                                        Image(systemName: "exclamationmark.triangle")
+                                            .foregroundColor(.orange)
+                                        Text("Требуется HuggingFace API ключ")
+                                            .font(.caption)
+                                            .foregroundColor(.orange)
+                                    }
+                                }
+                            }
+                            .padding()
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(12)
+                        }
+
                         // Claude API Key
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Claude API Key")
