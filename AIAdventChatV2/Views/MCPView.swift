@@ -1,4 +1,5 @@
 import SwiftUI
+import MCP
 
 /// Основной View для работы с MCP серверами
 struct MCPView: View {
@@ -322,24 +323,70 @@ struct ToolCallView: View {
     let mcpService: MCPService
 
     @Environment(\.dismiss) private var dismiss
-    @State private var argumentsText = "{}"
+    @State private var argumentsText = "{\n  \n}"
     @State private var result: String = ""
     @State private var isExecuting = false
+    @State private var showSchema = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Инструмент") {
-                    LabeledContent("Имя", value: tool.name)
-                    if let description = tool.description {
-                        LabeledContent("Описание", value: description)
+                Section {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(tool.name)
+                                .font(.headline)
+                            if let description = tool.description {
+                                Text(description)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        Spacer()
+
+                        if tool.inputSchema != nil {
+                            Button(action: { showSchema.toggle() }) {
+                                Label(showSchema ? "Скрыть схему" : "Показать схему",
+                                      systemImage: "doc.text.magnifyingglass")
+                            }
+                        }
+                    }
+                } header: {
+                    Text("Инструмент")
+                }
+
+                if showSchema, let schema = tool.inputSchema {
+                    Section("Схема аргументов") {
+                        Text(formatSchema(schema))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.secondary)
+                            .textSelection(.enabled)
                     }
                 }
 
-                Section("Аргументы (JSON)") {
-                    TextEditor(text: $argumentsText)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 100)
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Введите аргументы в формате JSON")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            Spacer()
+
+                            Button(action: fillExampleArgs) {
+                                Label("Пример", systemImage: "lightbulb.fill")
+                                    .font(.caption)
+                            }
+                        }
+
+                        TextEditor(text: $argumentsText)
+                            .font(.system(.body, design: .monospaced))
+                            .frame(minHeight: 120)
+                            .border(Color.gray.opacity(0.2))
+                    }
+                } header: {
+                    Text("Аргументы")
                 }
 
                 Section {
@@ -348,19 +395,25 @@ struct ToolCallView: View {
                             if isExecuting {
                                 ProgressView()
                                     .scaleEffect(0.8)
+                            } else {
+                                Image(systemName: "play.fill")
                             }
-                            Text(isExecuting ? "Выполнение..." : "Выполнить")
+                            Text(isExecuting ? "Выполнение..." : "Выполнить инструмент")
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    .disabled(isExecuting)
+                    .disabled(isExecuting || argumentsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
                 if !result.isEmpty {
                     Section("Результат") {
-                        Text(result)
-                            .font(.system(.body, design: .monospaced))
-                            .textSelection(.enabled)
+                        ScrollView {
+                            Text(result)
+                                .font(.system(.body, design: .monospaced))
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(maxHeight: 300)
                     }
                 }
             }
@@ -371,6 +424,57 @@ struct ToolCallView: View {
                 }
             }
         }
+        .frame(minWidth: 500, minHeight: 600)
+    }
+
+    private func fillExampleArgs() {
+        // Заполнить примером в зависимости от имени инструмента
+        switch tool.name {
+        case "store_memory", "store":
+            argumentsText = """
+            {
+              "key": "test_key",
+              "value": "Hello from MCP!"
+            }
+            """
+        case "retrieve_memory", "retrieve", "get":
+            argumentsText = """
+            {
+              "key": "test_key"
+            }
+            """
+        case "read_file":
+            argumentsText = """
+            {
+              "path": "/path/to/file.txt"
+            }
+            """
+        case "write_file":
+            argumentsText = """
+            {
+              "path": "/path/to/file.txt",
+              "content": "File content here"
+            }
+            """
+        case "list_directory":
+            argumentsText = """
+            {
+              "path": "/path/to/directory"
+            }
+            """
+        default:
+            argumentsText = """
+            {
+              "param1": "value1",
+              "param2": "value2"
+            }
+            """
+        }
+    }
+
+    private func formatSchema(_ value: Value) -> String {
+        // Простое форматирование Value для отображения
+        return String(describing: value)
     }
 
     private func executeTool() {
@@ -379,21 +483,83 @@ struct ToolCallView: View {
 
         Task {
             do {
-                // TODO: Parse JSON and convert to [String: Value]
-                // For now, using empty arguments
-                let toolResult = try await mcpService.callTool(name: tool.name, arguments: nil)
+                // Парсим JSON и конвертируем в [String: Value]
+                let arguments = try parseArguments(argumentsText)
+
+                let toolResult = try await mcpService.callTool(name: tool.name, arguments: arguments)
 
                 await MainActor.run {
                     result = formatResult(toolResult)
                     isExecuting = false
                 }
+            } catch let error as JSONParsingError {
+                await MainActor.run {
+                    result = "❌ Ошибка парсинга JSON:\n\(error.message)"
+                    isExecuting = false
+                }
             } catch {
                 await MainActor.run {
-                    result = "Error: \(error.localizedDescription)"
+                    result = "❌ Ошибка выполнения:\n\(error.localizedDescription)"
                     isExecuting = false
                 }
             }
         }
+    }
+
+    private func parseArguments(_ jsonString: String) throws -> [String: Value] {
+        let trimmed = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Если пустая строка или только {}, возвращаем nil
+        if trimmed.isEmpty || trimmed == "{}" {
+            return [:]
+        }
+
+        guard let data = trimmed.data(using: .utf8) else {
+            throw JSONParsingError(message: "Невозможно преобразовать строку в Data")
+        }
+
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw JSONParsingError(message: "Невалидный JSON формат")
+        }
+
+        var result: [String: Value] = [:]
+
+        for (key, value) in json {
+            result[key] = convertToMCPValue(value)
+        }
+
+        return result
+    }
+
+    private func convertToMCPValue(_ value: Any) -> Value {
+        switch value {
+        case let string as String:
+            return .string(string)
+        case let number as NSNumber:
+            if CFNumberGetType(number) == .charType {
+                return .bool(number.boolValue)
+            } else if CFNumberIsFloatType(number) {
+                return .double(number.doubleValue)
+            } else {
+                return .int(number.intValue)
+            }
+        case let bool as Bool:
+            return .bool(bool)
+        case let array as [Any]:
+            return .array(array.map { convertToMCPValue($0) })
+        case let dict as [String: Any]:
+            var object: [String: Value] = [:]
+            for (k, v) in dict {
+                object[k] = convertToMCPValue(v)
+            }
+            return .object(object)
+        default:
+            return .null
+        }
+    }
+
+    struct JSONParsingError: Error {
+        let message: String
     }
 
     private func formatResult(_ toolResult: MCPToolResult) -> String {
