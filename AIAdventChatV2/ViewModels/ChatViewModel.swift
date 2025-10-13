@@ -27,6 +27,7 @@ class ChatViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
     private let claudeService = ClaudeService()
+    private let localModelService = LocalModelService()
 
     init(settings: Settings) {
         self.settings = settings
@@ -123,6 +124,9 @@ class ChatViewModel: ObservableObject {
 
             // Выбираем провайдера суммаризации
             switch settings.summarizationProvider {
+            case .local:
+                summarizeWithLocalModel(message: message)
+                return
             case .huggingface:
                 if !settings.huggingFaceApiKey.isEmpty {
                     summarizeWithHuggingFace(message: message)
@@ -142,6 +146,77 @@ class ChatViewModel: ObservableObject {
 
         // Если суммаризация не включена или нет ключа, отправляем напрямую
         sendToClaudeDirectly(message: message)
+    }
+
+    private func summarizeWithLocalModel(message: String) {
+        // Устанавливаем сообщение о суммаризации
+        loadingMessage = "Суммаризация текста..."
+        summarizationProgress = "Подготовка..."
+
+        // Добавляем системное сообщение о начале суммаризации
+        let systemMessage = Message(
+            content: "🔄 Суммаризация текста локально (katanemo/Arch-Router-1.5B)...",
+            isFromUser: false,
+            isSystemMessage: true
+        )
+        messages.append(systemMessage)
+
+        // Суммаризируем текст локально
+        localModelService.summarize(
+            text: message,
+            progressCallback: { [weak self] progress in
+                DispatchQueue.main.async {
+                    self?.summarizationProgress = progress
+                    self?.loadingMessage = "Локальная суммаризация: \(progress)"
+                }
+            }
+        ) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+
+                switch result {
+                case .success(let summarizedText):
+                    // Обновляем системное сообщение с результатом
+                    if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                        let compressionRatio = Int((1.0 - Double(summarizedText.count) / Double(message.count)) * 100)
+                        let updatedMessage = Message(
+                            content: "✅ Текст суммаризирован локально (сжатие: \(compressionRatio)%) • Модель: katanemo/Arch-Router-1.5B",
+                            isFromUser: false,
+                            isSystemMessage: true
+                        )
+                        self.messages[index] = updatedMessage
+                    }
+
+                    print("📝 Оригинальный текст: \(message.count) символов")
+                    print("📝 Суммаризированный текст: \(summarizedText.count) символов")
+
+                    // Сбрасываем прогресс суммаризации и меняем сообщение
+                    self.summarizationProgress = nil
+                    self.loadingMessage = "Claude печатает..."
+
+                    self.sendToClaudeDirectly(message: summarizedText)
+
+                case .failure(let error):
+                    // Обновляем системное сообщение с ошибкой
+                    if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
+                        let errorMessage = Message(
+                            content: "⚠️ Ошибка локальной суммаризации: \(error.localizedDescription). Отправляем оригинальный текст",
+                            isFromUser: false,
+                            isSystemMessage: true
+                        )
+                        self.messages[index] = errorMessage
+                    }
+
+                    print("⚠️ Ошибка локальной суммаризации: \(error.localizedDescription)")
+
+                    // Сбрасываем прогресс и меняем сообщение
+                    self.summarizationProgress = nil
+                    self.loadingMessage = "Claude печатает..."
+
+                    self.sendToClaudeDirectly(message: message)
+                }
+            }
+        }
     }
 
     private func summarizeWithHuggingFace(message: String) {

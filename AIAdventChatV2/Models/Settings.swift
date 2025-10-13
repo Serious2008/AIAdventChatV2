@@ -13,8 +13,9 @@ enum ModelProvider: String, Codable, CaseIterable {
 }
 
 enum SummarizationProvider: String, Codable, CaseIterable {
-    case huggingface = "HuggingFace (Бесплатно)"
-    case claude = "Claude (Платно, выше качество)"
+    case local = "Локально (Бесплатно, приватно)"
+    case huggingface = "HuggingFace API (Бесплатно)"
+    case claude = "Claude API (Платно, выше качество)"
 }
 
 class Settings: ObservableObject {

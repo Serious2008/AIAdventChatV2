@@ -24,6 +24,15 @@ struct ClaudeResponse: Codable {
 }
 
 class ClaudeService {
+    // Rate limiting: 20000 токенов в минуту
+    private let maxTokensPerMinute = 20000
+    private var tokensUsedInCurrentMinute = 0
+    private var minuteStartTime = Date()
+    private let rateLimitQueue = DispatchQueue(label: "com.claudeservice.ratelimit")
+
+    // Очередь для запросов
+    private var requestQueue: [(chunk: String, apiKey: String, isFirst: Bool, isLast: Bool, isFinal: Bool, completion: (Result<String, Error>) -> Void)] = []
+    private var isProcessingQueue = false
 
     // Метод для суммаризации текста с использованием Claude
     func summarize(
@@ -32,9 +41,10 @@ class ClaudeService {
         progressCallback: ((String) -> Void)? = nil,
         completion: @escaping (Result<String, Error>) -> Void
     ) {
-        // Максимальный размер чанка для Claude (примерно 15000 токенов = 60000 символов)
-        // Claude имеет большой контекст, поэтому можем использовать большие чанки
-        let maxChunkSize = 60000
+        // Максимальный размер чанка для Claude
+        // С учетом лимита 20000 токенов/минуту, используем чанки ~3000 токенов (~12000 символов)
+        // Это позволит обработать ~6 чанков в минуту, оставляя запас на ответы
+        let maxChunkSize = 12000
 
         // Если текст помещается в один чанк, суммаризируем напрямую
         if text.count <= maxChunkSize {
@@ -108,7 +118,44 @@ class ClaudeService {
         return chunks
     }
 
-    // Последовательная суммаризация чанков
+    // Проверка и сброс лимита токенов
+    private func checkAndResetRateLimit() {
+        rateLimitQueue.sync {
+            let now = Date()
+            let timeElapsed = now.timeIntervalSince(minuteStartTime)
+
+            if timeElapsed >= 60 {
+                // Прошла минута, сбрасываем счетчик
+                print("⏰ Сброс счетчика токенов: \(tokensUsedInCurrentMinute) токенов за последнюю минуту")
+                tokensUsedInCurrentMinute = 0
+                minuteStartTime = now
+            }
+        }
+    }
+
+    // Оценка количества токенов (примерно 4 символа = 1 токен)
+    private func estimateTokens(_ text: String) -> Int {
+        return text.count / 4
+    }
+
+    // Получение доступных токенов
+    private func getAvailableTokens() -> Int {
+        var available = 0
+        rateLimitQueue.sync {
+            available = maxTokensPerMinute - tokensUsedInCurrentMinute
+        }
+        return available
+    }
+
+    // Добавление использованных токенов
+    private func addUsedTokens(_ tokens: Int) {
+        rateLimitQueue.sync {
+            tokensUsedInCurrentMinute += tokens
+            print("📊 Использовано токенов: +\(tokens) (всего за минуту: \(tokensUsedInCurrentMinute)/\(maxTokensPerMinute))")
+        }
+    }
+
+    // Последовательная суммаризация чанков с rate limiting
     private func summarizeChunksSequentially(
         chunks: [String],
         apiKey: String,
@@ -124,7 +171,7 @@ class ClaudeService {
                 let combinedSummary = summarizedChunks.joined(separator: " ")
 
                 // Если результат все еще слишком длинный, делаем финальную суммаризацию
-                if combinedSummary.count > 60000 {
+                if combinedSummary.count > 12000 {
                     print("📝 Финальная суммаризация объединенного результата в Claude")
                     progressCallback?("Финальная суммаризация")
                     summarizeChunk(
@@ -145,7 +192,33 @@ class ClaudeService {
             let isFirstChunk = (currentIndex == 0)
             let isLastChunk = (currentIndex == chunks.count - 1)
 
-            print("📄 Суммаризация чанка \(currentIndex + 1)/\(chunks.count) в Claude")
+            // Проверяем rate limit
+            checkAndResetRateLimit()
+
+            let estimatedInputTokens = estimateTokens(chunk) + estimateTokens("Summarize the following text concisely...") + 100
+            let estimatedOutputTokens = 300 // Ожидаемый размер суммаризации
+            let estimatedTotalTokens = estimatedInputTokens + estimatedOutputTokens
+
+            let availableTokens = getAvailableTokens()
+
+            if estimatedTotalTokens > availableTokens {
+                // Не хватает токенов, нужно подождать
+                let waitTime: TimeInterval = 60.0 // Ждем минуту для сброса лимита
+                print("⏳ Достигнут лимит токенов (\(tokensUsedInCurrentMinute)/\(maxTokensPerMinute)). Ожидание \(Int(waitTime))с...")
+                progressCallback?("Ожидание сброса лимита (\(Int(waitTime))с)")
+
+                DispatchQueue.global().asyncAfter(deadline: .now() + waitTime) {
+                    // После ожидания сбрасываем счетчик и продолжаем
+                    self.rateLimitQueue.sync {
+                        self.tokensUsedInCurrentMinute = 0
+                        self.minuteStartTime = Date()
+                    }
+                    summarizeNextChunk()
+                }
+                return
+            }
+
+            print("📄 Суммаризация чанка \(currentIndex + 1)/\(chunks.count) в Claude (оценка: ~\(estimatedTotalTokens) токенов)")
             progressCallback?("Чанк \(currentIndex + 1)/\(chunks.count)")
 
             summarizeChunk(
@@ -256,6 +329,13 @@ class ClaudeService {
             // Парсим ответ
             do {
                 let claudeResponse = try JSONDecoder().decode(ClaudeResponse.self, from: data)
+
+                // Учитываем использованные токены из ответа API
+                if let usage = claudeResponse.usage {
+                    let totalTokens = usage.input_tokens + usage.output_tokens
+                    self.addUsedTokens(totalTokens)
+                    print("✅ API вернул usage: input=\(usage.input_tokens), output=\(usage.output_tokens), total=\(totalTokens)")
+                }
 
                 if let firstContent = claudeResponse.content.first {
                     let summarizedText = firstContent.text.trimmingCharacters(in: .whitespacesAndNewlines)

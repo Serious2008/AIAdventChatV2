@@ -201,11 +201,16 @@ struct SettingsView: View {
                                                 Image(systemName: "info.circle")
                                                     .foregroundColor(.blue)
                                                     .font(.caption)
-                                                if settings.summarizationProvider == .huggingface {
-                                                    Text("Бесплатная суммаризация через katanemo/Arch-Router-1.5B")
+                                                switch settings.summarizationProvider {
+                                                case .local:
+                                                    Text("Локальный запуск модели (требует Python + transformers)")
                                                         .font(.caption)
                                                         .foregroundColor(.secondary)
-                                                } else {
+                                                case .huggingface:
+                                                    Text("Бесплатная суммаризация через HuggingFace API")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                case .claude:
                                                     Text("Качественная суммаризация через Claude (расход токенов)")
                                                         .font(.caption)
                                                         .foregroundColor(.secondary)
@@ -449,7 +454,7 @@ struct SettingsView: View {
                 }
                 .padding(20)
             }
-            .frame(minWidth: 500, minHeight: 400)
+            .frame(minWidth: 800, idealWidth: 900, maxWidth: 1200, minHeight: 600, idealHeight: 700, maxHeight: .infinity)
             .navigationTitle("Настройки")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
@@ -460,7 +465,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .frame(minWidth: 500, minHeight: 400)
+        .frame(minWidth: 800, idealWidth: 900, maxWidth: 1200, minHeight: 600, idealHeight: 700, maxHeight: .infinity)
     }
     
     private func testConnection() {
