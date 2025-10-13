@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		440F9BED2E9D673F0080DFBB /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 440F9BEC2E9D673F0080DFBB /* MCP */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		440F9B652E8D950D0080DFBB /* AIAdventChatV2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIAdventChatV2.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +40,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				440F9BED2E9D673F0080DFBB /* MCP in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +83,7 @@
 			);
 			name = AIAdventChatV2;
 			packageProductDependencies = (
+				440F9BEC2E9D673F0080DFBB /* MCP */,
 			);
 			productName = AIAdventChatV2;
 			productReference = 440F9B652E8D950D0080DFBB /* AIAdventChatV2.app */;
@@ -107,6 +113,9 @@
 			);
 			mainGroup = 440F9B5C2E8D950D0080DFBB;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				440F9BEB2E9D673F0080DFBB /* XCRemoteSwiftPackageReference "swift-sdk" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 440F9B662E8D950D0080DFBB /* Products */;
 			projectDirPath = "";
@@ -330,6 +339,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		440F9BEB2E9D673F0080DFBB /* XCRemoteSwiftPackageReference "swift-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/modelcontextprotocol/swift-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.10.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		440F9BEC2E9D673F0080DFBB /* MCP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 440F9BEB2E9D673F0080DFBB /* XCRemoteSwiftPackageReference "swift-sdk" */;
+			productName = MCP;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 440F9B5D2E8D950D0080DFBB /* Project object */;
 }
