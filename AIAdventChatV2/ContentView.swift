@@ -35,6 +35,14 @@ struct ContentView: View {
                 Label("Multi-Agent", systemImage: "person.2.fill")
             }
             .tag(1)
+
+            NavigationStack {
+                MCPView()
+            }
+            .tabItem {
+                Label("MCP", systemImage: "network")
+            }
+            .tag(2)
         }
     }
 }
