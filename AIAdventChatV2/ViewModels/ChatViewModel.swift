@@ -28,6 +28,7 @@ class ChatViewModel: ObservableObject {
     private let huggingFaceService = HuggingFaceService()
     private let claudeService = ClaudeService()
     private let localModelService = LocalModelService()
+    private let yandexTrackerService = YandexTrackerService()
 
     init(settings: Settings) {
         self.settings = settings
@@ -65,19 +66,18 @@ class ChatViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        // Проверяем, не команда ли это для Yandex Tracker
-        if isYandexTrackerCommand(messageToSend) {
+        // Инициализируем Yandex Tracker сервис если настроен
+        if settings.isYandexTrackerConfigured && !yandexTrackerService.isConnected {
             Task {
-                let trackerResult = await handleYandexTrackerCommand(messageToSend)
-
-                await MainActor.run {
-                    let botMessage = Message(content: trackerResult, isFromUser: false)
-                    messages.append(botMessage)
-                    isLoading = false
+                do {
+                    try await yandexTrackerService.configure(
+                        orgId: settings.yandexTrackerOrgId,
+                        token: settings.yandexTrackerToken
+                    )
+                } catch {
+                    print("⚠️ Не удалось подключиться к Yandex Tracker: \(error.localizedDescription)")
                 }
             }
-            // Возвращаемся сразу, не отправляем сообщение Claude
-            return
         }
 
         // Выбираем провайдера
@@ -90,7 +90,7 @@ class ChatViewModel: ObservableObject {
     }
 
     private func sendToHuggingFace(message: String) {
-        let startTime = Date()
+        let _ = Date() // Время начала для метрик
 
         huggingFaceService.sendRequest(
             model: settings.selectedModel,
@@ -391,7 +391,7 @@ class ChatViewModel: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("\(settings.apiKey)", forHTTPHeaderField: "x-api-key")
-        request.timeoutInterval = 30.0 // Увеличиваем таймаут
+        request.timeoutInterval = 60.0 // Увеличиваем таймаут для tool use
         
         let systemPrompt: String
         if conversationMode == .collectingRequirements {
@@ -432,16 +432,11 @@ class ChatViewModel: ObservableObject {
                 """
         } else {
             systemPrompt = """
-                Вы - полезный ассистент. ВСЕГДА отвечайте в формате JSON.
+                Вы - полезный ассистент с доступом к инструментам Yandex Tracker.
 
-                Обязательно используйте следующий формат для всех ответов:
-                {
-                    "response": "ваш ответ здесь",
-                    "confidence": "высокая/средняя/низкая",
-                    "additional_info": "дополнительная информация при необходимости"
-                }
+                Если пользователь спрашивает о задачах, статистике или других данных из Yandex Tracker, используйте доступные инструменты для получения актуальной информации.
 
-                Не добавляйте никакой текст до или после JSON. Только чистый JSON объект.
+                Для ответов используйте естественный язык, а не JSON формат.
                 """
         }
 
@@ -462,13 +457,36 @@ class ChatViewModel: ObservableObject {
             "content": message
         ])
 
-        let requestBody: [String: Any] = [
+        // Добавляем инструменты если Yandex Tracker настроен
+        var requestBody: [String: Any] = [
             "model": "claude-3-7-sonnet-20250219",
             "max_tokens": 2000,
             "temperature": settings.temperature,
             "system": systemPrompt,
             "messages": messagesArray
         ]
+        
+        // Добавляем инструменты Yandex Tracker если настроены
+        if settings.isYandexTrackerConfigured && yandexTrackerService.isConnected {
+            let tools = YandexTrackerToolsProvider.getTools()
+            let toolsJson = tools.map { tool in
+                [
+                    "name": tool.name,
+                    "description": tool.description,
+                    "input_schema": [
+                        "type": "object",
+                        "properties": tool.input_schema.properties.mapValues { property in
+                            [
+                                "type": property.type,
+                                "description": property.description
+                            ]
+                        },
+                        "required": tool.input_schema.required ?? []
+                    ]
+                ]
+            }
+            requestBody["tools"] = toolsJson
+        }
         
         do {
             request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
@@ -526,18 +544,16 @@ class ChatViewModel: ObservableObject {
                     return
                 }
 
-                self?.processClaudeResponse(data: data, responseTime: responseTime)
+                self?.processClaudeResponse(data: data, responseTime: responseTime, originalMessage: message)
             }
         }.resume()
     }
     
-    private func processClaudeResponse(data: Data, responseTime: TimeInterval) {
+    private func processClaudeResponse(data: Data, responseTime: TimeInterval, originalMessage: String) {
         do {
             if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                if let content = json["content"] as? [[String: Any]],
-                   let firstContent = content.first,
-                   let text = firstContent["text"] as? String {
-
+                if let content = json["content"] as? [[String: Any]] {
+                    
                     // Извлекаем usage информацию
                     var inputTokens: Int? = nil
                     var outputTokens: Int? = nil
@@ -554,36 +570,87 @@ class ChatViewModel: ObservableObject {
                             cost = inputCost + outputCost
                         }
                     }
-
-                    // Если в режиме сбора требований, проверяем JSON ответ
-                    if conversationMode == .collectingRequirements {
-                        processRequirementsResponse(
-                            text: text,
-                            responseTime: responseTime,
-                            inputTokens: inputTokens,
-                            outputTokens: outputTokens,
-                            cost: cost
-                        )
+                    
+                    // Проверяем есть ли tool_use в ответе
+                    var hasToolUse = false
+                    for contentItem in content {
+                        if contentItem["type"] as? String == "tool_use" {
+                            hasToolUse = true
+                            break
+                        }
+                    }
+                    
+                    if hasToolUse {
+                        // Обрабатываем tool use
+                        Task {
+                            await handleToolUse(content: content, responseTime: responseTime, inputTokens: inputTokens, outputTokens: outputTokens, cost: cost, originalMessage: originalMessage)
+                        }
                     } else {
-                        let claudeMessage = Message(
-                            content: text,
-                            isFromUser: false,
-                            temperature: settings.temperature,
-                            metrics: (
-                                responseTime: responseTime,
-                                inputTokens: inputTokens,
-                                outputTokens: outputTokens,
-                                cost: cost,
-                                modelName: "claude-3-7-sonnet-20250219"
-                            )
-                        )
-                        messages.append(claudeMessage)
+                        // Обычный текстовый ответ
+                        if let firstContent = content.first,
+                           let text = firstContent["text"] as? String {
+                            
+                            if conversationMode == .collectingRequirements {
+                                processRequirementsResponse(
+                                    text: text,
+                                    responseTime: responseTime,
+                                    inputTokens: inputTokens,
+                                    outputTokens: outputTokens,
+                                    cost: cost
+                                )
+                            } else {
+                                let claudeMessage = Message(
+                                    content: text,
+                                    isFromUser: false,
+                                    temperature: settings.temperature,
+                                    metrics: (
+                                        responseTime: responseTime,
+                                        inputTokens: inputTokens,
+                                        outputTokens: outputTokens,
+                                        cost: cost,
+                                        modelName: "claude-3-7-sonnet-20250219"
+                                    )
+                                )
+                                messages.append(claudeMessage)
+                            }
+                        }
                     }
                 } else if let error = json["error"] as? [String: Any],
                           let message = error["message"] as? String {
                     handleError("Ошибка API: \(message)")
                 } else {
-                    handleError("Неожиданный формат ответа")
+                    // Добавляем отладочную информацию
+                    print("🔍 Неожиданный формат ответа от Claude:")
+                    print("📄 JSON структура: \(json.keys)")
+                    if let content = json["content"] {
+                        print("📄 Content type: \(type(of: content))")
+                        print("📄 Content value: \(content)")
+                    }
+                    if let rawContent = json["content"] as? [Any] {
+                        print("📄 Raw content array: \(rawContent)")
+                    }
+                    
+                    // Пытаемся обработать как обычный текстовый ответ
+                    if let content = json["content"] as? [Any], let firstContent = content.first as? [String: Any] {
+                        if let text = firstContent["text"] as? String {
+                            let claudeMessage = Message(
+                                content: text,
+                                isFromUser: false,
+                                temperature: settings.temperature,
+                                metrics: (
+                                    responseTime: responseTime,
+                                    inputTokens: nil,
+                                    outputTokens: nil,
+                                    cost: nil,
+                                    modelName: "claude-3-7-sonnet-20250219"
+                                )
+                            )
+                            messages.append(claudeMessage)
+                            return
+                        }
+                    }
+                    
+                    handleError("Неожиданный формат ответа. Проверьте консоль для отладочной информации.")
                 }
             }
         } catch {
@@ -655,6 +722,263 @@ class ChatViewModel: ObservableObject {
         }
     }
     
+    private func handleToolUse(
+        content: [[String: Any]],
+        responseTime: TimeInterval,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        cost: Double?,
+        originalMessage: String
+    ) async {
+        print("🔧 Обработка tool_use от Claude")
+        print("📄 Количество content элементов: \(content.count)")
+        
+        // Собираем результаты выполнения инструментов
+        var toolResults: [[String: Any]] = []
+        
+        for (index, contentItem) in content.enumerated() {
+            print("📄 Content[\(index)]: \(contentItem)")
+            
+            if contentItem["type"] as? String == "tool_use",
+               let toolUseId = contentItem["id"] as? String,
+               let toolName = contentItem["name"] as? String,
+               let toolInput = contentItem["input"] as? [String: Any] {
+                
+                print("🔧 Выполняем инструмент: \(toolName)")
+                print("📄 ID: \(toolUseId)")
+                print("📄 Input: \(toolInput)")
+                
+                do {
+                    // Выполняем инструмент
+                    let result = try await YandexTrackerToolsProvider.executeTool(
+                        name: toolName,
+                        input: toolInput,
+                        trackerService: yandexTrackerService
+                    )
+                    
+                    print("✅ Инструмент выполнен успешно")
+                    print("📄 Результат: \(result)")
+                    
+                    // Добавляем результат
+                    toolResults.append([
+                        "type": "tool_result",
+                        "tool_use_id": toolUseId,
+                        "content": result,
+                        "is_error": false
+                    ])
+                    
+                } catch {
+                    print("❌ Ошибка выполнения инструмента: \(error.localizedDescription)")
+                    
+                    // Ошибка выполнения инструмента
+                    toolResults.append([
+                        "type": "tool_result",
+                        "tool_use_id": toolUseId,
+                        "content": "Ошибка выполнения инструмента: \(error.localizedDescription)",
+                        "is_error": true
+                    ])
+                }
+            }
+        }
+        
+        print("📄 Итого результатов инструментов: \(toolResults.count)")
+        
+        // Отправляем результаты обратно Claude
+        await sendToolResultsToClaude(
+            toolResults: toolResults,
+            originalMessage: originalMessage,
+            responseTime: responseTime,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
+            cost: cost
+        )
+    }
+    
+    private func sendToolResultsToClaude(
+        toolResults: [[String: Any]],
+        originalMessage: String,
+        responseTime: TimeInterval,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        cost: Double?
+    ) async {
+        print("📤 Отправляем результаты инструментов обратно Claude")
+        print("📄 Количество результатов: \(toolResults.count)")
+        print("📄 Исходное сообщение: \(originalMessage)")
+        
+        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
+            handleError("Неверный URL API")
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("\(settings.apiKey)", forHTTPHeaderField: "x-api-key")
+        request.timeoutInterval = 60.0
+
+        // Формируем сообщения для отправки
+        var messagesArray: [[String: Any]] = []
+        
+        // Добавляем последние несколько сообщений из истории для контекста
+        let recentMessages = Array(messages.suffix(4)) // Последние 4 сообщения
+        print("📄 Добавляем \(recentMessages.count) последних сообщений для контекста")
+        
+        for msg in recentMessages {
+            messagesArray.append([
+                "role": msg.isFromUser ? "user" : "assistant",
+                "content": msg.content
+            ])
+        }
+        
+        // Добавляем исходное сообщение пользователя (если его еще нет в истории)
+        if !recentMessages.contains(where: { $0.content == originalMessage && $0.isFromUser }) {
+            print("📄 Добавляем исходное сообщение пользователя")
+            messagesArray.append([
+                "role": "user",
+                "content": originalMessage
+            ])
+        }
+        
+        // Добавляем результаты выполнения инструментов
+        for toolResult in toolResults {
+            print("📄 Добавляем результат инструмента: \(toolResult)")
+            // tool_result не нужно добавлять в messages - это отдельный тип сообщения
+            // Вместо этого мы отправим их как отдельные сообщения в правильном формате
+        }
+
+        // Формируем финальное сообщение с результатами инструментов
+        var finalMessage = originalMessage + "\n\nРезультаты выполнения инструментов:\n"
+        
+        for toolResult in toolResults {
+            if let content = toolResult["content"] as? String {
+                finalMessage += "\n\(content)\n"
+            }
+        }
+        
+        // Добавляем финальное сообщение с результатами
+        messagesArray.append([
+            "role": "user",
+            "content": finalMessage
+        ])
+
+        let requestBody: [String: Any] = [
+            "model": "claude-3-7-sonnet-20250219",
+            "max_tokens": 2000,
+            "temperature": settings.temperature,
+            "system": "Вы - полезный ассистент с доступом к инструментам Yandex Tracker. Используйте результаты выполнения инструментов для ответа пользователю на естественном языке.",
+            "messages": messagesArray
+        ]
+        
+        print("📄 Итого сообщений для отправки: \(messagesArray.count)")
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            handleError("Ошибка при создании запроса: \(error.localizedDescription)")
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                self?.isLoading = false
+
+                if let error = error {
+                    print("❌ Ошибка сети при отправке результатов инструментов: \(error.localizedDescription)")
+                    self?.handleError("Ошибка сети: \(error.localizedDescription)")
+                    return
+                }
+
+                guard let data = data else {
+                    print("❌ Нет данных в ответе от Claude")
+                    self?.handleError("Нет данных в ответе")
+                    return
+                }
+
+                if let httpResponse = response as? HTTPURLResponse {
+                    print("📊 HTTP статус ответа от Claude: \(httpResponse.statusCode)")
+                    if httpResponse.statusCode >= 400 {
+                        if let responseString = String(data: data, encoding: .utf8) {
+                            print("❌ Ошибка HTTP: \(responseString)")
+                        }
+                    }
+                }
+
+                print("📄 Получен финальный ответ от Claude, размер: \(data.count) байт")
+
+                // Обрабатываем финальный ответ от Claude
+                self?.processFinalClaudeResponse(data: data, responseTime: responseTime, inputTokens: inputTokens, outputTokens: outputTokens, cost: cost)
+            }
+        }.resume()
+    }
+    
+    private func processFinalClaudeResponse(
+        data: Data,
+        responseTime: TimeInterval,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        cost: Double?
+    ) {
+        do {
+            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                print("🔍 Финальный ответ от Claude:")
+                print("📄 JSON ключи: \(json.keys)")
+                
+                if let content = json["content"] as? [[String: Any]],
+                   let firstContent = content.first,
+                   let text = firstContent["text"] as? String {
+                    
+                    print("📄 Найден текстовый ответ: \(text)")
+                    
+                    let claudeMessage = Message(
+                        content: text,
+                        isFromUser: false,
+                        temperature: settings.temperature,
+                        metrics: (
+                            responseTime: responseTime,
+                            inputTokens: inputTokens,
+                            outputTokens: outputTokens,
+                            cost: cost,
+                            modelName: "claude-3-7-sonnet-20250219"
+                        )
+                    )
+                    messages.append(claudeMessage)
+                } else {
+                    print("❌ Не удалось извлечь текстовый ответ из финального ответа")
+                    print("📄 Content: \(json["content"] ?? "nil")")
+                    
+                    // Пытаемся обработать как обычный ответ
+                    if let content = json["content"] as? [Any], let firstContent = content.first as? [String: Any] {
+                        if let text = firstContent["text"] as? String {
+                            print("📄 Найден альтернативный текстовый ответ: \(text)")
+                            let claudeMessage = Message(
+                                content: text,
+                                isFromUser: false,
+                                temperature: settings.temperature,
+                                metrics: (
+                                    responseTime: responseTime,
+                                    inputTokens: inputTokens,
+                                    outputTokens: outputTokens,
+                                    cost: cost,
+                                    modelName: "claude-3-7-sonnet-20250219"
+                                )
+                            )
+                            messages.append(claudeMessage)
+                            return
+                        }
+                    }
+                    
+                    handleError("Неожиданный формат финального ответа. Проверьте консоль для отладочной информации.")
+                }
+            } else {
+                handleError("Не удалось распарсить JSON ответ")
+            }
+        } catch {
+            handleError("Ошибка при обработке финального ответа: \(error.localizedDescription)")
+        }
+    }
+
     private func handleError(_ message: String) {
         errorMessage = message
         isLoading = false

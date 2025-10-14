@@ -170,6 +170,23 @@ class YandexTrackerToolsProvider {
         do {
             let issues = try await trackerService.getIssues(filter: filter, limit: limit)
 
+            if issues.isEmpty {
+                // Если список пустой, возвращаем статистику для контекста
+                let stats = try await trackerService.getIssueStats(filter: filter)
+                return """
+                {
+                    "message": "Список задач пока не доступен, но вот статистика:",
+                    "stats": {
+                        "total": \(stats.total),
+                        "open": \(stats.open),
+                        "in_progress": \(stats.inProgress),
+                        "closed": \(stats.closed)
+                    },
+                    "note": "Детальный список задач будет доступен в следующей версии"
+                }
+                """
+            }
+
             // Форматируем результат
             let issuesData = issues.map { issue in
                 return [
@@ -189,12 +206,12 @@ class YandexTrackerToolsProvider {
             return String(data: jsonData, encoding: .utf8) ?? "{}"
 
         } catch {
-            // getIssues возвращает пустой массив, так как парсинг не реализован
             // Возвращаем информацию об ошибке
             return """
             {
-                "error": "Issue list parsing not fully implemented yet",
-                "message": "The MCP server returns issues but parsing is incomplete. Use get_yandex_tracker_stats instead for now."
+                "error": "Не удалось получить список задач",
+                "message": "\(error.localizedDescription)",
+                "suggestion": "Попробуйте использовать get_yandex_tracker_stats для получения статистики"
             }
             """
         }
@@ -226,11 +243,13 @@ class YandexTrackerToolsProvider {
             return String(data: jsonData, encoding: .utf8) ?? "{}"
 
         } catch {
-            // getIssue не реализован полностью
+            // Возвращаем информацию об ошибке с полезными советами
             return """
             {
-                "error": "Issue detail parsing not fully implemented yet",
-                "message": "\(error.localizedDescription)"
+                "error": "Не удалось получить информацию о задаче \(issueKey)",
+                "message": "\(error.localizedDescription)",
+                "suggestion": "Проверьте правильность ключа задачи (формат: PROJECT-123) и доступность задачи",
+                "issue_key": "\(issueKey)"
             }
             """
         }
