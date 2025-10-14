@@ -12,7 +12,9 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showAPIKey = false
     @State private var testResult = ""
-    
+    @State private var trackerTestResult = ""
+    @State private var isTestingTracker = false
+
     var body: some View {
         NavigationView {
             ScrollView {
@@ -407,7 +409,7 @@ struct SettingsView: View {
                                 .font(.headline)
                                 .fontWeight(.semibold)
 
-                            TextField("12345", text: $settings.yandexTrackerOrgId)
+                            TextField("12345678", text: $settings.yandexTrackerOrgId)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
                                 .font(.system(.body, design: .monospaced))
                                 .padding(.horizontal, 12)
@@ -420,12 +422,19 @@ struct SettingsView: View {
                                 )
 
                             VStack(alignment: .leading, spacing: 8) {
-                                HStack {
+                                HStack(alignment: .top, spacing: 6) {
                                     Image(systemName: "info.circle")
                                         .foregroundColor(.orange)
-                                    Text("ID организации из Yandex Tracker → Настройки → О сервисе")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Organization ID - это ЧИСЛО (например: 12345678)")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .fontWeight(.semibold)
+                                        Text("Найдите в: Yandex Tracker → Settings → About organization")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                         }
@@ -493,6 +502,55 @@ struct SettingsView: View {
                         .padding()
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(12)
+
+                        // Кнопка проверки соединения с Yandex Tracker
+                        Button(action: {
+                            testYandexTrackerConnection()
+                        }) {
+                            HStack {
+                                if isTestingTracker {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Image(systemName: "checkmark.shield")
+                                }
+                                Text(isTestingTracker ? "Проверка..." : "Проверить подключение")
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(settings.isYandexTrackerConfigured ? Color.orange : Color.gray)
+                        .cornerRadius(8)
+                        .disabled(!settings.isYandexTrackerConfigured || isTestingTracker)
+
+                        // Результат теста Yandex Tracker
+                        if !trackerTestResult.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    if trackerTestResult.hasPrefix("✅") {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                    } else {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.red)
+                                    }
+                                    Text(trackerTestResult)
+                                        .font(.caption)
+                                        .foregroundColor(trackerTestResult.hasPrefix("✅") ? .green : .red)
+                                    Spacer()
+                                    Button("✕") {
+                                        trackerTestResult = ""
+                                    }
+                                    .foregroundColor(.secondary)
+                                }
+                            }
+                            .padding()
+                            .background(trackerTestResult.hasPrefix("✅") ? Color.green.opacity(0.1) : Color.red.opacity(0.1))
+                            .cornerRadius(8)
+                        }
                     }
 
                     // Информация секция
@@ -631,6 +689,62 @@ struct SettingsView: View {
                 }
             }
         }.resume()
+    }
+
+    private func testYandexTrackerConnection() {
+        trackerTestResult = ""
+        isTestingTracker = true
+
+        Task {
+            do {
+                // Создаём агента для проверки
+                let agent = YandexTrackerAgent(apiKey: settings.apiKey)
+
+                // Пытаемся подключиться
+                try await agent.configure(
+                    orgId: settings.yandexTrackerOrgId,
+                    token: settings.yandexTrackerToken
+                )
+
+                // Пробуем получить статистику (простой запрос)
+                let result = try await agent.executeTask(task: "Сколько всего задач?")
+
+                await MainActor.run {
+                    if result.contains("Всего задач:") || result.contains("статистика") {
+                        trackerTestResult = "✅ Подключение успешно! Данные Yandex Tracker верны."
+                    } else {
+                        trackerTestResult = "⚠️ Подключение установлено, но получен неожиданный ответ"
+                    }
+                    isTestingTracker = false
+                }
+
+            } catch {
+                await MainActor.run {
+                    // Анализируем ошибку для более понятного сообщения
+                    let errorMessage = error.localizedDescription
+
+                    if errorMessage.contains("620345") || errorMessage.contains("Organization not found") {
+                        trackerTestResult = "❌ Organization ID неверный или недоступен. Organization ID должен быть ЧИСЛОМ (например: 12345678). Найдите его в Yandex Tracker → Settings → About organization."
+                    } else if errorMessage.contains("401") || errorMessage.contains("Unauthorized") {
+                        trackerTestResult = "❌ Неверный OAuth Token. Проверьте токен в настройках Yandex OAuth."
+                    } else if errorMessage.contains("403") || errorMessage.contains("Forbidden") {
+                        trackerTestResult = "❌ Доступ запрещён (403). Проверьте, что OAuth Token имеет права 'tracker:read' и 'tracker:write', и что Organization ID правильный."
+                    } else if errorMessage.contains("404") {
+                        trackerTestResult = "❌ Organization ID не найден. Проверьте ID организации."
+                    } else if errorMessage.contains("Network") || errorMessage.contains("connection") {
+                        trackerTestResult = "❌ Ошибка сети. Проверьте подключение к интернету."
+                    } else if errorMessage.contains("Not connected") {
+                        trackerTestResult = "❌ MCP сервер не запустился. Проверьте, что mcp-yandex-tracker собран (npm run build)."
+                    } else if errorMessage.contains("Transport error") {
+                        trackerTestResult = "❌ Ошибка запуска MCP сервера. Проверьте Node.js (node --version)."
+                    } else {
+                        trackerTestResult = "❌ Ошибка: \(errorMessage)"
+                    }
+
+                    isTestingTracker = false
+                }
+            }
+        }
     }
 
     private var temperatureDescription: String {

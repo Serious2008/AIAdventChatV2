@@ -57,11 +57,43 @@ class YandexTrackerService: ObservableObject {
         self.orgId = orgId
         self.token = token
 
-        // Подключаемся к MCP серверу Yandex Tracker
-        let projectPath = FileManager.default.currentDirectoryPath
-        let serverPath = "\(projectPath)/mcp-yandex-tracker/build/index.js"
+        // Инициализируем MCP клиент
+        mcpService.initializeClient()
 
-        let command = ["node", serverPath]
+        // Подключаемся к MCP серверу Yandex Tracker
+        // Определяем путь к MCP серверу
+        let projectPath: String
+
+        // Пытаемся найти путь относительно рабочей директории
+        let possiblePaths = [
+            // Относительно рабочей директории при запуске из Xcode
+            "\(FileManager.default.currentDirectoryPath)/mcp-yandex-tracker/build/index.js",
+            // Относительно Documents
+            "\(NSHomeDirectory())/Documents/PetProject/AIAdventChatV2/mcp-yandex-tracker/build/index.js",
+            // Если запущено из корня проекта
+            "mcp-yandex-tracker/build/index.js"
+        ]
+
+        var serverPath: String?
+        for path in possiblePaths {
+            if FileManager.default.fileExists(atPath: path) {
+                serverPath = path
+                print("✅ Found MCP server at: \(path)")
+                break
+            } else {
+                print("⚠️ MCP server not found at: \(path)")
+            }
+        }
+
+        guard let finalServerPath = serverPath else {
+            throw NSError(
+                domain: "YandexTrackerService",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "MCP сервер не найден. Убедитесь, что mcp-yandex-tracker/build/index.js существует. Текущая директория: \(FileManager.default.currentDirectoryPath)"]
+            )
+        }
+
+        let command = ["node", finalServerPath]
 
         try await mcpService.connect(serverCommand: command)
 

@@ -60,6 +60,7 @@ struct MessageBubble: View {
                                 // Основной ответ с дополнительной информацией внутри
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text(parsed.response)
+                                        .textSelection(.enabled)
 
                                     if let additionalInfo = parsed.additional_info, !additionalInfo.isEmpty {
                                         Divider()
@@ -78,6 +79,7 @@ struct MessageBubble: View {
                                             Text(additionalInfo)
                                                 .font(.body)
                                                 .foregroundColor(.primary)
+                                                .textSelection(.enabled)
                                         }
                                     }
                                 }
@@ -229,6 +231,7 @@ struct MessageBubble: View {
                             // Fallback для обычного текста (без JSON парсинга)
                             VStack(alignment: .leading, spacing: 12) {
                                 Text(message.content)
+                                    .textSelection(.enabled)
                                     .padding(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(Color(NSColor.controlColor))

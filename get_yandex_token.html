@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Получить OAuth Token для Yandex Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .step {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .step-number {
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .step-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            color: #555;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button {
+            background: #667eea;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s;
+        }
+
+        .button:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .info {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .info-title {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 8px;
+        }
+
+        .info-text {
+            color: #555;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .warning-title {
+            font-weight: 600;
+            color: #f57c00;
+            margin-bottom: 8px;
+        }
+
+        .code {
+            background: #f5f5f5;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+
+        .url-preview {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            word-break: break-all;
+            margin-top: 15px;
+            color: #333;
+            border: 2px dashed #667eea;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .success-title {
+            font-weight: 600;
+            color: #155724;
+            margin-bottom: 8px;
+        }
+
+        .generated-url {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .copy-button {
+            background: #28a745;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .copy-button:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔑 Получение OAuth Token</h1>
+        <p class="subtitle">для Yandex Tracker API</p>
+
+        <div class="step">
+            <div class="step-title">
+                <span class="step-number">1</span>
+                Введите Client ID
+            </div>
+
+            <div class="input-group">
+                <label for="clientId">Client ID (Идентификатор приложения):</label>
+                <input
+                    type="text"
+                    id="clientId"
+                    placeholder="Например: abc123def456"
+                    oninput="updateUrl()"
+                >
+            </div>
+
+            <div class="info">
+                <div class="info-title">📍 Где найти Client ID?</div>
+                <div class="info-text">
+                    Откройте <a href="https://oauth.yandex.ru/" target="_blank">oauth.yandex.ru</a> →
+                    Ваше приложение → Идентификатор приложения
+                </div>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">
+                <span class="step-number">2</span>
+                Сгенерируйте ссылку
+            </div>
+
+            <button class="button" onclick="generateUrl()">
+                🚀 Создать ссылку для получения токена
+            </button>
+
+            <div class="generated-url" id="generatedUrl">
+                <div class="success">
+                    <div class="success-title">✅ Ссылка готова!</div>
+                    <div class="info-text">Нажмите на кнопку ниже, чтобы открыть ссылку и получить токен</div>
+                </div>
+
+                <div class="url-preview" id="urlPreview"></div>
+
+                <button class="button" onclick="openUrl()">
+                    🔗 Открыть ссылку и получить токен
+                </button>
+
+                <button class="copy-button" onclick="copyUrl()">
+                    📋 Скопировать ссылку
+                </button>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">
+                <span class="step-number">3</span>
+                После авторизации
+            </div>
+
+            <div class="warning">
+                <div class="warning-title">⚠️ Важно!</div>
+                <div class="info-text">
+                    После авторизации Яндекс перенаправит вас на страницу.<br>
+                    В адресной строке браузера будет токен после <span class="code">access_token=</span><br><br>
+                    Пример:<br>
+                    <span class="code">https://oauth.yandex.ru/...#access_token=<strong>y0_AgA...</strong>&token_type=bearer</span><br><br>
+                    Скопируйте всё после <span class="code">access_token=</span> и до <span class="code">&</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="info">
+            <div class="info-title">🎯 Что дальше?</div>
+            <div class="info-text">
+                1. Откройте сгенерированную ссылку<br>
+                2. Войдите в аккаунт Яндекс<br>
+                3. Разрешите доступ к Tracker<br>
+                4. Скопируйте токен из адресной строки (начинается с <span class="code">y0_AgA</span>)<br>
+                5. Вставьте токен в настройки приложения
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let generatedUrlString = '';
+
+        function updateUrl() {
+            const clientId = document.getElementById('clientId').value.trim();
+            if (clientId) {
+                generatedUrlString = `https://oauth.yandex.ru/authorize?response_type=token&client_id=${clientId}&scope=tracker:read%20tracker:write`;
+            }
+        }
+
+        function generateUrl() {
+            const clientId = document.getElementById('clientId').value.trim();
+
+            if (!clientId) {
+                alert('⚠️ Пожалуйста, введите Client ID');
+                return;
+            }
+
+            generatedUrlString = `https://oauth.yandex.ru/authorize?response_type=token&client_id=${clientId}&scope=tracker:read%20tracker:write`;
+
+            document.getElementById('urlPreview').textContent = generatedUrlString;
+            document.getElementById('generatedUrl').style.display = 'block';
+        }
+
+        function openUrl() {
+            if (generatedUrlString) {
+                window.open(generatedUrlString, '_blank');
+            } else {
+                alert('⚠️ Сначала сгенерируйте ссылку');
+            }
+        }
+
+        function copyUrl() {
+            if (generatedUrlString) {
+                navigator.clipboard.writeText(generatedUrlString).then(() => {
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = '✅ Скопировано!';
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 2000);
+                });
+            }
+        }
+    </script>
+</body>
+</html>

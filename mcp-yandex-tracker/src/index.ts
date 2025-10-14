@@ -57,13 +57,47 @@ class YandexTrackerClient {
   // Получить список задач по фильтру
   async getIssues(filter?: string, limit: number = 50): Promise<Issue[]> {
     try {
-      const response = await this.client.post("/issues/_search", {
-        filter: filter ? { query: filter } : {},
+      // Используем GET метод вместо POST для _search
+      const params: any = {
         perPage: limit,
-      });
+      };
+
+      if (filter) {
+        params.filter = filter;
+      }
+
+      const response = await this.client.get("/issues", { params });
       return response.data;
     } catch (error: any) {
-      throw new Error(`Failed to fetch issues: ${error.message}`);
+      // Детальная информация об ошибке
+      const status = error.response?.status;
+      const statusText = error.response?.statusText;
+      const errorData = error.response?.data;
+
+      let detailedMessage = `Failed to fetch issues`;
+
+      if (status === 403) {
+        // Проверяем конкретный код ошибки Yandex Tracker
+        if (errorData?.errorCode === 620345) {
+          detailedMessage += `: Organization not found (error code 620345). Your Organization ID is incorrect or you don't have access to this organization. Organization ID should be a numeric ID (like '12345678'), not organization name. Check https://tracker.yandex.ru → Settings → About to find the correct ID.`;
+        } else {
+          detailedMessage += `: Access forbidden (403). Check that your OAuth token has 'tracker:read' permission and Organization ID is correct.`;
+        }
+      } else if (status === 401) {
+        detailedMessage += `: Unauthorized (401). Check your OAuth token.`;
+      } else if (status === 404) {
+        detailedMessage += `: Not found (404). Check Organization ID.`;
+      } else if (status) {
+        detailedMessage += `: Status ${status} - ${statusText}`;
+      } else {
+        detailedMessage += `: ${error.message}`;
+      }
+
+      if (errorData) {
+        detailedMessage += ` Details: ${JSON.stringify(errorData)}`;
+      }
+
+      throw new Error(detailedMessage);
     }
   }
 
