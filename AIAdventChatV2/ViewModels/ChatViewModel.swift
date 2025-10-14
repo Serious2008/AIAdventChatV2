@@ -68,16 +68,16 @@ class ChatViewModel: ObservableObject {
         // Проверяем, не команда ли это для Yandex Tracker
         if isYandexTrackerCommand(messageToSend) {
             Task {
-                if let trackerResult = await handleYandexTrackerCommand(messageToSend) {
-                    await MainActor.run {
-                        let botMessage = Message(content: trackerResult, isFromUser: false)
-                        messages.append(botMessage)
-                        isLoading = false
-                    }
-                    return
+                let trackerResult = await handleYandexTrackerCommand(messageToSend)
+
+                await MainActor.run {
+                    let botMessage = Message(content: trackerResult, isFromUser: false)
+                    messages.append(botMessage)
+                    isLoading = false
                 }
             }
-            // Если обработка не удалась, продолжаем обычным образом
+            // Возвращаемся сразу, не отправляем сообщение Claude
+            return
         }
 
         // Выбираем провайдера

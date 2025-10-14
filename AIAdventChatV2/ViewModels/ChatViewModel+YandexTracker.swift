@@ -29,7 +29,7 @@ extension ChatViewModel {
     }
 
     /// Обработать команду Yandex Tracker
-    func handleYandexTrackerCommand(_ message: String) async -> String? {
+    func handleYandexTrackerCommand(_ message: String) async -> String {
         // Проверяем настройки
         guard settings.isYandexTrackerConfigured else {
             return """
