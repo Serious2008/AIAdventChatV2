@@ -176,6 +176,31 @@ struct ChatView: View {
             
             Divider()
 
+            // Быстрые команды Yandex Tracker
+            if settings.isYandexTrackerConfigured && viewModel.conversationMode == .normal {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(ChatViewModel.yandexTrackerQuickCommands, id: \.title) { command in
+                            Button(action: {
+                                viewModel.currentMessage = command.command
+                            }) {
+                                Text(command.title)
+                                    .font(.caption)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.orange.opacity(0.2))
+                                    .foregroundColor(.orange)
+                                    .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                }
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+            }
+
             // Индикатор токенов
             if !viewModel.currentMessage.isEmpty {
                 TokenIndicatorView(

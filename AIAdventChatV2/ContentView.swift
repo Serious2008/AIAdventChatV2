@@ -43,6 +43,14 @@ struct ContentView: View {
                 Label("MCP", systemImage: "network")
             }
             .tag(2)
+
+            NavigationStack {
+                YandexTrackerTestView()
+            }
+            .tabItem {
+                Label("Tracker", systemImage: "checklist")
+            }
+            .tag(3)
         }
     }
 }

@@ -67,6 +67,20 @@ class Settings: ObservableObject {
         }
     }
 
+    // MARK: - Yandex Tracker Settings
+
+    @Published var yandexTrackerOrgId: String {
+        didSet {
+            UserDefaults.standard.set(yandexTrackerOrgId, forKey: "YandexTrackerOrgId")
+        }
+    }
+
+    @Published var yandexTrackerToken: String {
+        didSet {
+            UserDefaults.standard.set(yandexTrackerToken, forKey: "YandexTrackerToken")
+        }
+    }
+
     init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ClaudeAPIKey") ?? ""
         self.huggingFaceApiKey = UserDefaults.standard.string(forKey: "HuggingFaceAPIKey") ?? ""
@@ -91,6 +105,9 @@ class Settings: ObservableObject {
         } else {
             self.summarizationProvider = .huggingface
         }
+
+        self.yandexTrackerOrgId = UserDefaults.standard.string(forKey: "YandexTrackerOrgId") ?? ""
+        self.yandexTrackerToken = UserDefaults.standard.string(forKey: "YandexTrackerToken") ?? ""
     }
 
     var isConfigured: Bool {
@@ -100,6 +117,10 @@ class Settings: ObservableObject {
         case .huggingface:
             return !huggingFaceApiKey.isEmpty
         }
+    }
+
+    var isYandexTrackerConfigured: Bool {
+        return !yandexTrackerOrgId.isEmpty && !yandexTrackerToken.isEmpty
     }
 }
 

@@ -23,7 +23,7 @@ class ChatViewModel: ObservableObject {
     @Published var loadingMessage: String = "Claude печатает..."
     @Published var summarizationProgress: String?
 
-    private let settings: Settings
+    internal let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
     private let claudeService = ClaudeService()
@@ -56,14 +56,29 @@ class ChatViewModel: ObservableObject {
             errorMessage = "API ключ не настроен. Пожалуйста, добавьте его в настройках."
             return
         }
-        
+
         let userMessage = Message(content: currentMessage, isFromUser: true)
         messages.append(userMessage)
-        
+
         let messageToSend = currentMessage
         currentMessage = ""
         isLoading = true
         errorMessage = nil
+
+        // Проверяем, не команда ли это для Yandex Tracker
+        if isYandexTrackerCommand(messageToSend) {
+            Task {
+                if let trackerResult = await handleYandexTrackerCommand(messageToSend) {
+                    await MainActor.run {
+                        let botMessage = Message(content: trackerResult, isFromUser: false)
+                        messages.append(botMessage)
+                        isLoading = false
+                    }
+                    return
+                }
+            }
+            // Если обработка не удалась, продолжаем обычным образом
+        }
 
         // Выбираем провайдера
         switch settings.selectedProvider {

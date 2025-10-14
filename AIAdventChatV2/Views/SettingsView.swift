@@ -394,7 +394,107 @@ struct SettingsView: View {
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(12)
                     }
-                    
+
+                    // MARK: - Yandex Tracker Settings
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Yandex Tracker")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .padding(.bottom, 8)
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Organization ID")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+
+                            TextField("12345", text: $settings.yandexTrackerOrgId)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(.system(.body, design: .monospaced))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color(NSColor.textBackgroundColor))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                )
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "info.circle")
+                                        .foregroundColor(.orange)
+                                    Text("ID организации из Yandex Tracker → Настройки → О сервисе")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("OAuth Token")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+
+                            HStack {
+                                Group {
+                                    if showAPIKey {
+                                        TextField("y0_AgAAAAAA...", text: $settings.yandexTrackerToken)
+                                    } else {
+                                        SecureField("y0_AgAAAAAA...", text: $settings.yandexTrackerToken)
+                                    }
+                                }
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(.system(.body, design: .monospaced))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color(NSColor.textBackgroundColor))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.orange.opacity(0.3), lineWidth: 1)
+                                )
+
+                                Button(action: {
+                                    showAPIKey.toggle()
+                                }) {
+                                    Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                                        .foregroundColor(.orange)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "info.circle")
+                                        .foregroundColor(.orange)
+                                    Text("Создайте OAuth токен на https://oauth.yandex.ru/")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        HStack {
+                            Circle()
+                                .fill(settings.isYandexTrackerConfigured ? Color.green : Color.orange)
+                                .frame(width: 12, height: 12)
+
+                            Text(settings.isYandexTrackerConfigured ? "Yandex Tracker настроен" : "Заполните данные Yandex Tracker")
+                                .foregroundColor(settings.isYandexTrackerConfigured ? .green : .orange)
+                                .fontWeight(.medium)
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+                    }
+
                     // Информация секция
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Информация")
