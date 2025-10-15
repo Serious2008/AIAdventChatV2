@@ -51,6 +51,13 @@
             ReferencedContainer = "container:AIAdventChatV2.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "OPENWEATHER_API_KEY"
+            value = "7653813746c279433ae85f6f7bd149e7"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"

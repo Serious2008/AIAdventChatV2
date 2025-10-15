@@ -29,9 +29,11 @@ class ChatViewModel: ObservableObject {
     private let claudeService = ClaudeService()
     private let localModelService = LocalModelService()
     private let yandexTrackerService = YandexTrackerService()
+    private let periodicTaskService = PeriodicTaskService()
 
     init(settings: Settings) {
         self.settings = settings
+        periodicTaskService.chatViewModel = self
     }
 
     func startRequirementsCollection() {
@@ -432,11 +434,34 @@ class ChatViewModel: ObservableObject {
                 """
         } else {
             // Формируем system prompt в зависимости от наличия инструментов
-            if settings.isYandexTrackerConfigured && yandexTrackerService.isConnected {
+            let hasTrackerTools = settings.isYandexTrackerConfigured && yandexTrackerService.isConnected
+            let hasPeriodicTasks = true // Периодические задачи всегда доступны
+
+            if hasTrackerTools && hasPeriodicTasks {
+                systemPrompt = """
+                    Вы - полезный ассистент с доступом к инструментам Yandex Tracker и периодическим задачам.
+
+                    Когда пользователь спрашивает о задачах, статистике или других данных из Yandex Tracker, используйте доступные инструменты для получения актуальной информации.
+
+                    Когда пользователь просит периодически присылать информацию (например: "Пиши мне погоду каждый час"), используйте инструменты для создания автоматических периодических задач.
+
+                    Для обычных вопросов отвечайте как обычный ассистент.
+                    Используйте естественный язык для всех ответов.
+                    """
+            } else if hasTrackerTools {
                 systemPrompt = """
                     Вы - полезный ассистент с доступом к инструментам Yandex Tracker.
 
                     Когда пользователь спрашивает о задачах, статистике или других данных из Yandex Tracker, используйте доступные инструменты для получения актуальной информации.
+
+                    Для обычных вопросов отвечайте как обычный ассистент.
+                    Используйте естественный язык для всех ответов.
+                    """
+            } else if hasPeriodicTasks {
+                systemPrompt = """
+                    Вы - полезный ассистент с возможностью создания автоматических периодических задач.
+
+                    Когда пользователь просит периодически присылать информацию (например: "Пиши мне погоду каждый час", "Присылай обновления погоды раз в час"), используйте доступные инструменты для создания автоматических задач.
 
                     Для обычных вопросов отвечайте как обычный ассистент.
                     Используйте естественный язык для всех ответов.
@@ -477,10 +502,20 @@ class ChatViewModel: ObservableObject {
             "messages": messagesArray
         ]
         
-        // Добавляем инструменты Yandex Tracker если настроены
+        // Добавляем инструменты
+        var allTools: [ClaudeTool] = []
+
+        // Инструменты Yandex Tracker если настроены
         if settings.isYandexTrackerConfigured && yandexTrackerService.isConnected {
-            let tools = YandexTrackerToolsProvider.getTools()
-            let toolsJson = tools.map { tool in
+            allTools.append(contentsOf: YandexTrackerToolsProvider.getTools())
+        }
+
+        // Инструменты периодических задач (всегда доступны)
+        allTools.append(contentsOf: PeriodicTaskToolsProvider.getTools())
+
+        // Формируем JSON для tools если есть хотя бы один инструмент
+        if !allTools.isEmpty {
+            let toolsJson = allTools.map { tool in
                 [
                     "name": tool.name,
                     "description": tool.description,
@@ -760,16 +795,31 @@ class ChatViewModel: ObservableObject {
                 print("📄 Input: \(toolInput)")
                 
                 do {
-                    // Выполняем инструмент
-                    let result = try await YandexTrackerToolsProvider.executeTool(
-                        name: toolName,
-                        input: toolInput,
-                        trackerService: yandexTrackerService
-                    )
-                    
+                    // Определяем тип инструмента и выполняем
+                    let result: String
+
+                    // Проверяем, это инструмент Yandex Tracker или Periodic Task
+                    if toolName.hasPrefix("get_yandex_tracker") {
+                        // Yandex Tracker инструмент
+                        result = try await YandexTrackerToolsProvider.executeTool(
+                            name: toolName,
+                            input: toolInput,
+                            trackerService: yandexTrackerService
+                        )
+                    } else if toolName.contains("weather") || toolName.contains("task") {
+                        // Periodic Task инструмент
+                        result = PeriodicTaskToolsProvider.executeTool(
+                            name: toolName,
+                            input: toolInput,
+                            periodicTaskService: periodicTaskService
+                        )
+                    } else {
+                        result = "❌ Неизвестный тип инструмента: \(toolName)"
+                    }
+
                     print("✅ Инструмент выполнен успешно")
                     print("📄 Результат: \(result)")
-                    
+
                     // Добавляем результат
                     toolResults.append([
                         "type": "tool_result",
@@ -777,10 +827,10 @@ class ChatViewModel: ObservableObject {
                         "content": result,
                         "is_error": false
                     ])
-                    
+
                 } catch {
                     print("❌ Ошибка выполнения инструмента: \(error.localizedDescription)")
-                    
+
                     // Ошибка выполнения инструмента
                     toolResults.append([
                         "type": "tool_result",
