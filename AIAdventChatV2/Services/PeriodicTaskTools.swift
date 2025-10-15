@@ -148,16 +148,24 @@ class PeriodicTaskToolsProvider {
     private static func executeStopWeatherUpdates(
         service: PeriodicTaskService
     ) -> String {
+        print("🛑 executeStopWeatherUpdates вызван")
+        print("📊 Всего задач: \(service.activeTasks.count)")
+
         let activeTasks = service.activeTasks.filter { $0.isActive }
+        print("📊 Активных задач: \(activeTasks.count)")
 
         if activeTasks.isEmpty {
             return "ℹ️ Нет активных периодических задач для остановки"
         }
 
         // Останавливаем все активные задачи
+        print("🛑 Останавливаю \(activeTasks.count) задач...")
         for task in activeTasks {
+            print("🛑 Останавливаю задачу: \(task.id) - \(task.action)")
             service.stopTask(id: task.id)
         }
+
+        print("✅ Все задачи остановлены")
 
         return """
         ✅ Остановил все автоматические обновления погоды (\(activeTasks.count) задач)

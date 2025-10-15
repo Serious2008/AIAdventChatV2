@@ -40,9 +40,9 @@ class PeriodicTaskService: ObservableObject {
         // Запускаем задачу
         scheduleTask(task)
 
-        // Выполняем сразу
+        // Выполняем сразу (используем executeTaskById чтобы избежать дублирования)
         Task {
-            await executeTask(task)
+            await executeTaskById(task.id)
         }
 
         return task.id
@@ -50,14 +50,25 @@ class PeriodicTaskService: ObservableObject {
 
     /// Остановить задачу
     func stopTask(id: UUID) {
+        print("🛑 Останавливаю задачу \(id)")
+
         // Останавливаем таймер
-        timers[id]?.invalidate()
-        timers.removeValue(forKey: id)
+        if let timer = timers[id] {
+            timer.invalidate()
+            timers.removeValue(forKey: id)
+            print("✅ Timer остановлен и удалён для задачи \(id)")
+        } else {
+            print("⚠️ Timer не найден для задачи \(id)")
+        }
 
         // Деактивируем задачу
         if let index = activeTasks.firstIndex(where: { $0.id == id }) {
             activeTasks[index].isActive = false
             saveTasks()
+            print("✅ Задача \(id) деактивирована и сохранена")
+            print("📊 Активных задач осталось: \(activeTasks.filter { $0.isActive }.count)")
+        } else {
+            print("⚠️ Задача \(id) не найдена в activeTasks")
         }
     }
 
