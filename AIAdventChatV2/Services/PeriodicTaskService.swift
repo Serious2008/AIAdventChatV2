@@ -74,38 +74,62 @@ class PeriodicTaskService: ObservableObject {
 
         let interval = TimeInterval(task.intervalMinutes * 60)
 
-        let timer = Timer.scheduledTimer(
-            withTimeInterval: interval,
-            repeats: true
-        ) { [weak self] _ in
+        print("⏰ Планирую задачу \(task.id) с интервалом \(interval) секунд (\(task.intervalMinutes) минут)")
+
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
+            print("⏰ Timer сработал для задачи \(task.id)")
             Task {
-                await self?.executeTask(task)
+                await self?.executeTaskById(task.id)
             }
         }
 
+        // Добавляем timer в main RunLoop с режимом common
+        RunLoop.main.add(timer, forMode: .common)
+
         timers[task.id] = timer
+
+        print("✅ Timer создан и добавлен в RunLoop для задачи \(task.id)")
+    }
+
+    /// Выполнить задачу по ID
+    private func executeTaskById(_ taskId: UUID) async {
+        guard let task = activeTasks.first(where: { $0.id == taskId && $0.isActive }) else {
+            print("⚠️ Задача \(taskId) не найдена или неактивна")
+            return
+        }
+
+        print("🚀 Выполняю задачу \(taskId): \(task.action) с параметрами \(task.parameters)")
+        await executeTask(task)
     }
 
     /// Выполнить задачу
     private func executeTask(_ task: PeriodicTask) async {
+        print("📋 Начинаю выполнение задачи \(task.id)")
+
         do {
             // Получаем результат из MCP
+            print("🔧 Вызываю MCP tool: \(task.action)")
             let result = try await executeMCPTool(
                 action: task.action,
                 parameters: task.parameters
             )
+            print("✅ MCP tool вернул результат: \(result.prefix(100))...")
 
             // Увеличиваем счётчик выполнений
             if let index = activeTasks.firstIndex(where: { $0.id == task.id }) {
                 await MainActor.run {
                     activeTasks[index].executionCount += 1
+                    print("📊 Счётчик выполнений задачи \(task.id): \(activeTasks[index].executionCount)")
                 }
             }
 
             // Добавляем результат в чат
+            print("💬 Добавляю результат в чат")
             await addResultToChat(result: result, task: task)
+            print("✅ Задача \(task.id) успешно выполнена")
 
         } catch {
+            print("❌ Ошибка выполнения задачи \(task.id): \(error.localizedDescription)")
             // Добавляем ошибку в чат
             await addResultToChat(
                 result: "❌ Ошибка выполнения задачи: \(error.localizedDescription)",
@@ -119,32 +143,68 @@ class PeriodicTaskService: ObservableObject {
         action: String,
         parameters: [String: String]
     ) async throws -> String {
-        // Инициализируем MCP клиент
-        mcpService.initializeClient()
-
-        // Подключаемся к weather server если не подключены
-        if !mcpService.isConnected {
-            // Проверяем наличие API ключа в переменных окружения
-            guard ProcessInfo.processInfo.environment["OPENWEATHER_API_KEY"] != nil else {
-                throw NSError(
-                    domain: "PeriodicTaskService",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "OPENWEATHER_API_KEY не установлен. Установите переменную окружения в Xcode Scheme или в ~/.zshrc"]
-                )
-            }
-
-            try await mcpService.connect(serverCommand: ["node", weatherServerPath])
+        // Проверяем наличие API ключа
+        guard ProcessInfo.processInfo.environment["OPENWEATHER_API_KEY"] != nil else {
+            throw NSError(
+                domain: "PeriodicTaskService",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "OPENWEATHER_API_KEY не установлен. Установите переменную окружения в Xcode Scheme или в ~/.zshrc"]
+            )
         }
 
-        // Вызываем инструмент
-        let arguments = parameters.mapValues { MCP.Value.string($0) }
-        let result = try await mcpService.callTool(
-            name: action,
-            arguments: arguments
-        )
+        // Пытаемся выполнить инструмент, с переподключением при необходимости
+        do {
+            // Инициализируем клиент если нужно
+            mcpService.initializeClient()
 
-        // Извлекаем текст из результата
-        return extractText(from: result.content)
+            // Подключаемся если не подключены
+            if !mcpService.isConnected {
+                print("🔌 Подключаюсь к MCP Weather Server...")
+                try await mcpService.connect(serverCommand: ["node", weatherServerPath])
+                print("✅ Подключён к MCP Weather Server")
+            }
+
+            // Вызываем инструмент
+            print("📞 Вызываю MCP tool: \(action) с параметрами: \(parameters)")
+            let arguments = parameters.mapValues { MCP.Value.string($0) }
+            let result = try await mcpService.callTool(
+                name: action,
+                arguments: arguments
+            )
+
+            // Извлекаем текст из результата
+            return extractText(from: result.content)
+
+        } catch {
+            // Если ошибка "Client connection not initialized" - пробуем переподключиться
+            if error.localizedDescription.contains("Client connection not initialized") ||
+               error.localizedDescription.contains("not initialized") {
+                print("⚠️ Соединение потеряно: \(error.localizedDescription)")
+                print("🔄 Пробую переподключиться...")
+
+                // Отключаемся от старого соединения
+                await mcpService.disconnect()
+
+                // Принудительно переподключаемся
+                mcpService.initializeClient()
+                try await mcpService.connect(serverCommand: ["node", weatherServerPath])
+                print("✅ Переподключился к MCP Weather Server")
+
+                // Повторяем попытку вызова инструмента
+                print("🔄 Повторяю вызов MCP tool: \(action)")
+                let arguments = parameters.mapValues { MCP.Value.string($0) }
+                let result = try await mcpService.callTool(
+                    name: action,
+                    arguments: arguments
+                )
+
+                return extractText(from: result.content)
+            }
+
+            // Другая ошибка - пробрасываем дальше
+            print("❌ Ошибка MCP tool: \(error.localizedDescription)")
+            throw error
+        }
     }
 
     /// Извлечь текст из MCP ответа
@@ -159,8 +219,15 @@ class PeriodicTaskService: ObservableObject {
 
     /// Добавить результат в чат
     private func addResultToChat(result: String, task: PeriodicTask) async {
+        print("💬 addResultToChat вызван для задачи \(task.id)")
+
         await MainActor.run {
-            guard let chatViewModel = chatViewModel else { return }
+            guard let chatViewModel = chatViewModel else {
+                print("⚠️ chatViewModel is nil!")
+                return
+            }
+
+            print("✅ chatViewModel доступен, текущее количество сообщений: \(chatViewModel.messages.count)")
 
             // Создаём сообщение с меткой периодической задачи
             let cityName = task.parameters["city"] ?? "Unknown"
@@ -170,6 +237,8 @@ class PeriodicTaskService: ObservableObject {
 
             let message = Message(content: content, isFromUser: false)
             chatViewModel.messages.append(message)
+
+            print("✅ Сообщение добавлено в чат. Новое количество сообщений: \(chatViewModel.messages.count)")
         }
     }
 
