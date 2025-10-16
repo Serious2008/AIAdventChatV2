@@ -45,6 +45,40 @@ async function getWeatherSummary(city) {
         throw new Error(`Не удалось получить погоду: ${error.message}`);
     }
 }
+async function getWeatherMultipleCities(cities) {
+    const results = [];
+    for (const city of cities) {
+        try {
+            const url = `https://api.openweathermap.org/data/2.5/weather`;
+            const response = await axios.get(url, {
+                params: {
+                    q: city,
+                    appid: API_KEY,
+                    units: "metric",
+                    lang: "ru"
+                }
+            });
+            const data = response.data;
+            results.push({
+                city: data.name,
+                temp: data.main.temp,
+                feels_like: data.main.feels_like,
+                weather: data.weather[0].description,
+                humidity: data.main.humidity,
+                wind_speed: data.wind.speed,
+                pressure: data.main.pressure,
+                clouds: data.clouds.all
+            });
+        }
+        catch (error) {
+            results.push({
+                city: city,
+                error: error.message || "Не удалось получить данные"
+            });
+        }
+    }
+    return JSON.stringify(results, null, 2);
+}
 const server = new Server({
     name: "mcp-weather-server",
     version: "1.0.0",
@@ -70,6 +104,23 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                     required: ["city"],
                 },
             },
+            {
+                name: "get_weather_multiple_cities",
+                description: "Получить погоду сразу для нескольких городов. Возвращает JSON с данными о погоде для каждого города.",
+                inputSchema: {
+                    type: "object",
+                    properties: {
+                        cities: {
+                            type: "array",
+                            items: {
+                                type: "string"
+                            },
+                            description: "Массив названий городов (например: [\"Москва\", \"Санкт-Петербург\", \"Казань\"])",
+                        },
+                    },
+                    required: ["cities"],
+                },
+            },
         ],
     };
 });
@@ -93,6 +144,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                     {
                         type: "text",
                         text: summary,
+                    },
+                ],
+            };
+        }
+        catch (error) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: `Ошибка: ${error.message}`,
+                    },
+                ],
+            };
+        }
+    }
+    if (request.params.name === "get_weather_multiple_cities") {
+        const cities = request.params.arguments?.cities;
+        if (!cities || !Array.isArray(cities) || cities.length === 0) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: "Ошибка: параметр 'cities' обязателен и должен быть массивом с хотя бы одним городом",
+                    },
+                ],
+            };
+        }
+        try {
+            const result = await getWeatherMultipleCities(cities);
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: result,
                     },
                 ],
             };

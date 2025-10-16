@@ -109,6 +109,18 @@ class PeriodicTaskService: ObservableObject {
         saveTasks()
     }
 
+    /// Вызвать MCP инструмент напрямую (для использования из внешних сервисов)
+    func callMCPTool(name: String, arguments: [String: MCP.Value]) async throws -> MCPToolResult {
+        // Подключаемся если не подключены
+        if !mcpService.isConnected {
+            print("🔌 Подключаюсь к MCP Weather Server...")
+            try await mcpService.connect(serverCommand: ["node", weatherServerPath])
+            print("✅ Подключён к MCP Weather Server")
+        }
+
+        return try await mcpService.callTool(name: name, arguments: arguments)
+    }
+
     /// Запланировать выполнение задачи
     private func scheduleTask(_ task: PeriodicTask) {
         guard task.isActive else { return }

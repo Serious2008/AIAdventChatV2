@@ -810,10 +810,11 @@ class ChatViewModel: ObservableObject {
                     } else if toolName.contains("weather") || toolName.contains("task") {
                         print("➡️ Распознан как Periodic Task инструмент")
                         // Periodic Task инструмент
-                        result = PeriodicTaskToolsProvider.executeTool(
+                        result = try await PeriodicTaskToolsProvider.executeTool(
                             name: toolName,
                             input: toolInput,
-                            periodicTaskService: periodicTaskService
+                            periodicTaskService: periodicTaskService,
+                            settings: settings
                         )
                     } else {
                         print("⚠️ Не распознан тип инструмента: \(toolName)")

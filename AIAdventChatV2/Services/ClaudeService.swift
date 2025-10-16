@@ -353,4 +353,111 @@ class ClaudeService {
             }
         }.resume()
     }
+
+    // Метод для анализа погоды в нескольких городах
+    func analyzeWeather(
+        weatherData: String,
+        apiKey: String,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
+        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
+            completion(.failure(NSError(domain: "ClaudeService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неверный URL"])))
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        request.timeoutInterval = 60.0
+
+        let analysisPrompt = """
+        Проанализируй данные о погоде в нескольких городах России и создай краткую сводку.
+
+        Данные о погоде (JSON):
+        \(weatherData)
+
+        Напиши краткий анализ, включающий:
+        1. Общий обзор погоды в этих городах
+        2. Самый теплый и самый холодный город
+        3. Где самая высокая/низкая влажность
+        4. Общие тенденции (солнечно, облачно, осадки)
+        5. Рекомендации для путешественников
+
+        Ответ пиши на русском языке, кратко и информативно.
+        """
+
+        let requestBody: [String: Any] = [
+            "model": "claude-3-7-sonnet-20250219",
+            "max_tokens": 1500,
+            "temperature": 0.5,
+            "messages": [
+                [
+                    "role": "user",
+                    "content": analysisPrompt
+                ]
+            ]
+        ]
+
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        } catch {
+            completion(.failure(error))
+            return
+        }
+
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(NSError(domain: "ClaudeService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                return
+            }
+
+            // Проверяем HTTP статус
+            if let httpResponse = response as? HTTPURLResponse {
+                print("📊 Claude Weather Analysis HTTP Status: \(httpResponse.statusCode)")
+
+                if httpResponse.statusCode >= 400 {
+                    if let responseString = String(data: data, encoding: .utf8) {
+                        print("❌ Claude API Error Response: \(responseString)")
+                        completion(.failure(NSError(domain: "ClaudeService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Ошибка анализа погоды (\(httpResponse.statusCode)): \(responseString)"])))
+                    } else {
+                        completion(.failure(NSError(domain: "ClaudeService", code: httpResponse.statusCode, userInfo: [NSLocalizedDescriptionKey: "Ошибка анализа погоды: \(httpResponse.statusCode)"])))
+                    }
+                    return
+                }
+            }
+
+            // Парсим ответ
+            do {
+                let claudeResponse = try JSONDecoder().decode(ClaudeResponse.self, from: data)
+
+                // Учитываем использованные токены
+                if let usage = claudeResponse.usage {
+                    let totalTokens = usage.input_tokens + usage.output_tokens
+                    self.addUsedTokens(totalTokens)
+                    print("✅ Weather Analysis API usage: input=\(usage.input_tokens), output=\(usage.output_tokens), total=\(totalTokens)")
+                }
+
+                if let firstContent = claudeResponse.content.first {
+                    let analysis = firstContent.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    completion(.success(analysis))
+                    return
+                }
+
+                completion(.failure(NSError(domain: "ClaudeService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Пустой ответ при анализе погоды"])))
+            } catch {
+                if let responseString = String(data: data, encoding: .utf8) {
+                    completion(.failure(NSError(domain: "ClaudeService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Ошибка парсинга анализа: \(error.localizedDescription)\nОтвет: \(responseString)"])))
+                } else {
+                    completion(.failure(NSError(domain: "ClaudeService", code: -5, userInfo: [NSLocalizedDescriptionKey: "Не удалось распарсить ответ анализа: \(error.localizedDescription)"])))
+                }
+            }
+        }.resume()
+    }
 }

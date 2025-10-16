@@ -1,4 +1,5 @@
 import Foundation
+import MCP
 
 /// Провайдер инструментов для управления периодическими задачами
 class PeriodicTaskToolsProvider {
@@ -7,7 +8,8 @@ class PeriodicTaskToolsProvider {
         return [
             getStartWeatherUpdatesTool(),
             getStopWeatherUpdatesTool(),
-            getListActiveTasksTool()
+            getListActiveTasksTool(),
+            getAnalyzeWeatherMultipleCitiesTool()
         ]
     }
 
@@ -72,12 +74,42 @@ class PeriodicTaskToolsProvider {
         )
     }
 
+    /// Инструмент для анализа погоды в нескольких городах
+    private static func getAnalyzeWeatherMultipleCitiesTool() -> ClaudeTool {
+        return ClaudeTool(
+            name: "analyze_weather_multiple_cities",
+            description: """
+            Получить и проанализировать погоду в нескольких городах России.
+            Используй этот инструмент когда пользователь просит:
+            - "Проанализируй погоду в крупнейших городах России"
+            - "Какая погода в нескольких городах?"
+            - "Сравни погоду в разных городах"
+
+            Этот инструмент автоматически:
+            1. Получит данные о погоде для указанных городов (по умолчанию 10 крупнейших городов России)
+            2. Проанализирует данные с помощью Claude
+            3. Сохранит результат в файл
+
+            По умолчанию анализируются: Москва, Санкт-Петербург, Новосибирск, Екатеринбург, Казань,
+            Нижний Новгород, Челябинск, Самара, Омск, Ростов-на-Дону
+            """,
+            properties: [
+                "cities": ClaudeTool.InputSchema.Property(
+                    type: "array",
+                    description: "Список городов для анализа (необязательно, по умолчанию 10 крупнейших городов России)"
+                )
+            ],
+            required: nil
+        )
+    }
+
     /// Выполнить инструмент
     static func executeTool(
         name: String,
         input: [String: Any],
-        periodicTaskService: PeriodicTaskService
-    ) -> String {
+        periodicTaskService: PeriodicTaskService,
+        settings: Settings
+    ) async throws -> String {
         print("🔧 PeriodicTaskTools.executeTool вызван с name: '\(name)'")
         print("📊 Входные параметры: \(input)")
 
@@ -93,6 +125,10 @@ class PeriodicTaskToolsProvider {
         case "list_active_tasks":
             print("📋 Вызываю list_active_tasks")
             return executeListActiveTasks(service: periodicTaskService)
+
+        case "analyze_weather_multiple_cities":
+            print("🌍 Вызываю analyze_weather_multiple_cities")
+            return try await executeAnalyzeWeatherMultipleCities(input: input, service: periodicTaskService, settings: settings)
 
         default:
             print("❌ Неизвестное имя инструмента: '\(name)'")
@@ -237,5 +273,114 @@ class PeriodicTaskToolsProvider {
         }
 
         return result
+    }
+
+    private static func executeAnalyzeWeatherMultipleCities(
+        input: [String: Any],
+        service: PeriodicTaskService,
+        settings: Settings
+    ) async throws -> String {
+        // Список городов по умолчанию - 10 крупнейших городов России
+        let defaultCities = [
+            "Москва",
+            "Санкт-Петербург",
+            "Новосибирск",
+            "Екатеринбург",
+            "Казань",
+            "Нижний Новгород",
+            "Челябинск",
+            "Самара",
+            "Омск",
+            "Ростов-на-Дону"
+        ]
+
+        // Получаем список городов из параметров или используем по умолчанию
+        let cities: [String]
+        if let citiesParam = input["cities"] as? [String], !citiesParam.isEmpty {
+            cities = citiesParam
+        } else {
+            cities = defaultCities
+        }
+
+        print("🌍 Получаю погоду для \(cities.count) городов: \(cities.joined(separator: ", "))")
+
+        // 1. Получаем данные о погоде через MCP
+        let weatherData: String
+        do {
+            // Вызываем MCP tool через публичный метод PeriodicTaskService
+            let result = try await service.callMCPTool(
+                name: "get_weather_multiple_cities",
+                arguments: ["cities": MCP.Value.array(cities.map { MCP.Value.string($0) })]
+            )
+
+            // Извлекаем текст из результата
+            weatherData = result.content.compactMap { item -> String? in
+                if case .text(let text) = item {
+                    return text
+                }
+                return nil
+            }.joined(separator: "\n")
+        } catch {
+            return "❌ Не удалось получить данные о погоде: \(error.localizedDescription)"
+        }
+
+        print("📄 Получен JSON погоды (\(weatherData.count) символов)")
+
+        // 2. Анализируем погоду с помощью Claude
+        print("🤖 Начинаю анализ погоды с помощью Claude...")
+
+        let claudeService = ClaudeService()
+
+        return try await withCheckedThrowingContinuation { continuation in
+            claudeService.analyzeWeather(
+                weatherData: weatherData,
+                apiKey: settings.apiKey
+            ) { result in
+                switch result {
+                case .success(let analysis):
+                    print("✅ Анализ погоды завершён")
+
+                    // 3. Сохраняем результат в файл
+                    let timestamp = Int(Date().timeIntervalSince1970)
+                    let fileName = "weather_analysis_\(timestamp).txt"
+                    let fileURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent(fileName)
+
+                    do {
+                        let fullContent = """
+                        Анализ погоды в городах России
+                        Дата: \(Date().formatted(date: .long, time: .shortened))
+
+                        \(analysis)
+
+                        ───────────────────────────────────────
+                        Исходные данные:
+                        \(weatherData)
+                        """
+
+                        try fullContent.write(to: fileURL, atomically: true, encoding: .utf8)
+                        print("💾 Результат сохранён в файл: \(fileURL.path)")
+
+                        let finalResult = """
+                        ✅ Анализ погоды завершён!
+
+                        \(analysis)
+
+                        💾 Результат сохранён в файл:
+                        \(fileURL.path)
+                        """
+
+                        continuation.resume(returning: finalResult)
+                    } catch {
+                        print("❌ Ошибка сохранения файла: \(error.localizedDescription)")
+                        // Даже если не удалось сохранить, возвращаем анализ
+                        continuation.resume(returning: analysis)
+                    }
+
+                case .failure(let error):
+                    print("❌ Ошибка анализа погоды: \(error.localizedDescription)")
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 }
