@@ -18,8 +18,29 @@ class PeriodicTaskService: ObservableObject {
         let projectPath = FileManager.default.currentDirectoryPath
         self.weatherServerPath = "\(projectPath)/mcp-weather-server/build/index.js"
 
+        // Инициализируем MCP клиент ОДИН РАЗ при создании сервиса
+        mcpService.initializeClient()
+        print("✅ MCP Client инициализирован в PeriodicTaskService.init()")
+
         // Загружаем сохранённые задачи
         loadTasks()
+    }
+
+    deinit {
+        print("🧹 PeriodicTaskService деинициализируется, очищаю ресурсы...")
+
+        // Останавливаем все таймеры
+        for (id, timer) in timers {
+            print("🛑 Останавливаю timer для задачи \(id)")
+            timer.invalidate()
+        }
+        timers.removeAll()
+
+        // Отключаемся от MCP
+        Task {
+            await mcpService.disconnect()
+            print("✅ MCP соединение закрыто")
+        }
     }
 
     /// Создать новую периодическую задачу
@@ -152,31 +173,37 @@ class PeriodicTaskService: ObservableObject {
     /// Выполнить инструмент через MCP
     private func executeMCPTool(
         action: String,
-        parameters: [String: String]
+        parameters: [String: String],
+        retryCount: Int = 0
     ) async throws -> String {
         // Проверяем наличие API ключа
         guard ProcessInfo.processInfo.environment["OPENWEATHER_API_KEY"] != nil else {
             throw NSError(
                 domain: "PeriodicTaskService",
                 code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "OPENWEATHER_API_KEY не установлен. Установите переменную окружения в Xcode Scheme или в ~/.zshrc"]
+                userInfo: [NSLocalizedDescriptionKey: "OPENWEATHER_API_KEY не установлен"]
             )
         }
 
-        // Пытаемся выполнить инструмент, с переподключением при необходимости
-        do {
-            // Инициализируем клиент если нужно
-            mcpService.initializeClient()
+        // Максимум 2 попытки (0 и 1), чтобы избежать бесконечного цикла
+        guard retryCount < 2 else {
+            print("❌ Превышено максимальное количество попыток подключения (2)")
+            throw NSError(
+                domain: "PeriodicTaskService",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Не удалось подключиться к MCP Weather Server после 2 попыток"]
+            )
+        }
 
-            // Подключаемся если не подключены
+        do {
+            // Подключаемся если не подключены (Client уже инициализирован в init)
             if !mcpService.isConnected {
-                print("🔌 Подключаюсь к MCP Weather Server...")
+                print("🔌 Подключаюсь к MCP Weather Server... (попытка \(retryCount + 1))")
                 try await mcpService.connect(serverCommand: ["node", weatherServerPath])
                 print("✅ Подключён к MCP Weather Server")
             }
 
             // Вызываем инструмент
-            print("📞 Вызываю MCP tool: \(action) с параметрами: \(parameters)")
             let arguments = parameters.mapValues { MCP.Value.string($0) }
             let result = try await mcpService.callTool(
                 name: action,
@@ -187,33 +214,29 @@ class PeriodicTaskService: ObservableObject {
             return extractText(from: result.content)
 
         } catch {
-            // Если ошибка "Client connection not initialized" - пробуем переподключиться
-            if error.localizedDescription.contains("Client connection not initialized") ||
-               error.localizedDescription.contains("not initialized") {
-                print("⚠️ Соединение потеряно: \(error.localizedDescription)")
-                print("🔄 Пробую переподключиться...")
+            // Если ошибка "Client connection not initialized" - пробуем переподключиться ОДИН РАЗ
+            if (error.localizedDescription.contains("Client connection not initialized") ||
+                error.localizedDescription.contains("not initialized")) && retryCount == 0 {
 
-                // Отключаемся от старого соединения
+                print("⚠️ Соединение потеряно: \(error.localizedDescription)")
+                print("🔄 Переподключаюсь... (попытка \(retryCount + 2))")
+
+                // Отключаемся от старого соединения чтобы освободить ресурсы
                 await mcpService.disconnect()
 
-                // Принудительно переподключаемся
-                mcpService.initializeClient()
-                try await mcpService.connect(serverCommand: ["node", weatherServerPath])
-                print("✅ Переподключился к MCP Weather Server")
+                // Небольшая задержка перед переподключением
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 секунды
 
-                // Повторяем попытку вызова инструмента
-                print("🔄 Повторяю вызов MCP tool: \(action)")
-                let arguments = parameters.mapValues { MCP.Value.string($0) }
-                let result = try await mcpService.callTool(
-                    name: action,
-                    arguments: arguments
+                // Рекурсивно вызываем с увеличенным счётчиком
+                return try await executeMCPTool(
+                    action: action,
+                    parameters: parameters,
+                    retryCount: retryCount + 1
                 )
-
-                return extractText(from: result.content)
             }
 
-            // Другая ошибка - пробрасываем дальше
-            print("❌ Ошибка MCP tool: \(error.localizedDescription)")
+            // Другая ошибка или превышен лимит попыток - пробрасываем
+            print("❌ Ошибка MCP tool (попытка \(retryCount + 1)): \(error.localizedDescription)")
             throw error
         }
     }
