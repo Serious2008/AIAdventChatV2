@@ -72,6 +72,10 @@ class PeriodicTaskService: ObservableObject {
     /// Остановить задачу
     func stopTask(id: UUID) {
         print("🛑 Останавливаю задачу \(id)")
+        print("📊 Всего Timer в памяти: \(timers.count)")
+        print("📊 Timer IDs: \(timers.keys.map { $0.uuidString.prefix(8) })")
+        print("📊 Всего задач в activeTasks: \(activeTasks.count)")
+        print("📊 Активных задач: \(activeTasks.filter { $0.isActive }.count)")
 
         // Останавливаем таймер
         if let timer = timers[id] {
@@ -80,6 +84,7 @@ class PeriodicTaskService: ObservableObject {
             print("✅ Timer остановлен и удалён для задачи \(id)")
         } else {
             print("⚠️ Timer не найден для задачи \(id)")
+            print("   Ищу задачу \(id.uuidString.prefix(8))...")
         }
 
         // Деактивируем задачу
@@ -90,6 +95,10 @@ class PeriodicTaskService: ObservableObject {
             print("📊 Активных задач осталось: \(activeTasks.filter { $0.isActive }.count)")
         } else {
             print("⚠️ Задача \(id) не найдена в activeTasks")
+            print("   Доступные задачи:")
+            for task in activeTasks {
+                print("   - \(task.id.uuidString.prefix(8)): \(task.action), active: \(task.isActive)")
+            }
         }
     }
 
