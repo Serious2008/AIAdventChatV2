@@ -545,9 +545,11 @@ class ChatViewModel: ObservableObject {
             let responseTime = Date().timeIntervalSince(startTime)
 
             DispatchQueue.main.async {
-                self?.isLoading = false
+                // НЕ сбрасываем isLoading здесь - будем сбрасывать после обработки
+                // self?.isLoading = false
 
                 if let error = error {
+                    self?.isLoading = false
                     let nsError = error as NSError
                     var errorMessage = "Ошибка сети: \(error.localizedDescription)"
 
@@ -577,15 +579,18 @@ class ChatViewModel: ObservableObject {
                     }
 
                     if httpResponse.statusCode == 401 {
+                        self?.isLoading = false
                         self?.handleError("Неверный API ключ. Проверьте настройки.")
                         return
                     } else if httpResponse.statusCode >= 400 {
+                        self?.isLoading = false
                         self?.handleError("Ошибка сервера: \(httpResponse.statusCode)")
                         return
                     }
                 }
 
                 guard let data = data else {
+                    self?.isLoading = false
                     self?.handleError("Нет данных в ответе")
                     return
                 }
@@ -627,15 +632,18 @@ class ChatViewModel: ObservableObject {
                     }
                     
                     if hasToolUse {
-                        // Обрабатываем tool use
+                        // Обрабатываем tool use - isLoading остается true
+                        // Он будет сброшен в конце handleToolUse
                         Task {
                             await handleToolUse(content: content, responseTime: responseTime, inputTokens: inputTokens, outputTokens: outputTokens, cost: cost, originalMessage: originalMessage)
                         }
                     } else {
-                        // Обычный текстовый ответ
+                        // Обычный текстовый ответ - можно сбросить isLoading
+                        isLoading = false
+
                         if let firstContent = content.first,
                            let text = firstContent["text"] as? String {
-                            
+
                             if conversationMode == .collectingRequirements {
                                 processRequirementsResponse(
                                     text: text,
@@ -663,6 +671,7 @@ class ChatViewModel: ObservableObject {
                     }
                 } else if let error = json["error"] as? [String: Any],
                           let message = error["message"] as? String {
+                    isLoading = false
                     handleError("Ошибка API: \(message)")
                 } else {
                     // Добавляем отладочную информацию
@@ -675,10 +684,11 @@ class ChatViewModel: ObservableObject {
                     if let rawContent = json["content"] as? [Any] {
                         print("📄 Raw content array: \(rawContent)")
                     }
-                    
+
                     // Пытаемся обработать как обычный текстовый ответ
                     if let content = json["content"] as? [Any], let firstContent = content.first as? [String: Any] {
                         if let text = firstContent["text"] as? String {
+                            isLoading = false
                             let claudeMessage = Message(
                                 content: text,
                                 isFromUser: false,
@@ -695,11 +705,13 @@ class ChatViewModel: ObservableObject {
                             return
                         }
                     }
-                    
+
+                    isLoading = false
                     handleError("Неожиданный формат ответа. Проверьте консоль для отладочной информации.")
                 }
             }
         } catch {
+            isLoading = false
             handleError("Ошибка при обработке ответа: \(error.localizedDescription)")
         }
     }
@@ -801,6 +813,10 @@ class ChatViewModel: ObservableObject {
                     // Проверяем, это инструмент Yandex Tracker или Periodic Task
                     if toolName.hasPrefix("get_yandex_tracker") {
                         print("➡️ Распознан как Yandex Tracker инструмент")
+                        // Обновляем индикатор загрузки
+                        await MainActor.run {
+                            self.loadingMessage = "📊 Yandex Tracker API запрашивает данные..."
+                        }
                         // Yandex Tracker инструмент
                         result = try await YandexTrackerToolsProvider.executeTool(
                             name: toolName,
@@ -814,7 +830,12 @@ class ChatViewModel: ObservableObject {
                             name: toolName,
                             input: toolInput,
                             periodicTaskService: periodicTaskService,
-                            settings: settings
+                            settings: settings,
+                            progressCallback: { [weak self] progress in
+                                DispatchQueue.main.async {
+                                    self?.loadingMessage = progress
+                                }
+                            }
                         )
                     } else {
                         print("⚠️ Не распознан тип инструмента: \(toolName)")
@@ -847,7 +868,12 @@ class ChatViewModel: ObservableObject {
         }
         
         print("📄 Итого результатов инструментов: \(toolResults.count)")
-        
+
+        // Обновляем индикатор - все инструменты выполнены, Claude формирует ответ
+        await MainActor.run {
+            self.loadingMessage = "🤖 Claude анализирует результаты и формирует ответ..."
+        }
+
         // Отправляем результаты обратно Claude
         await sendToolResultsToClaude(
             toolResults: toolResults,
@@ -858,7 +884,7 @@ class ChatViewModel: ObservableObject {
             cost: cost
         )
     }
-    
+
     private func sendToolResultsToClaude(
         toolResults: [[String: Any]],
         originalMessage: String,
@@ -947,15 +973,17 @@ class ChatViewModel: ObservableObject {
 
         URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
-                self?.isLoading = false
+                // НЕ сбрасываем isLoading здесь - будем сбрасывать после обработки ответа
 
                 if let error = error {
+                    self?.isLoading = false
                     print("❌ Ошибка сети при отправке результатов инструментов: \(error.localizedDescription)")
                     self?.handleError("Ошибка сети: \(error.localizedDescription)")
                     return
                 }
 
                 guard let data = data else {
+                    self?.isLoading = false
                     print("❌ Нет данных в ответе от Claude")
                     self?.handleError("Нет данных в ответе")
                     return
@@ -993,9 +1021,11 @@ class ChatViewModel: ObservableObject {
                 if let content = json["content"] as? [[String: Any]],
                    let firstContent = content.first,
                    let text = firstContent["text"] as? String {
-                    
+
                     print("📄 Найден текстовый ответ: \(text)")
-                    
+
+                    isLoading = false // Финальный ответ получен, сбрасываем индикатор
+
                     let claudeMessage = Message(
                         content: text,
                         isFromUser: false,
@@ -1012,11 +1042,14 @@ class ChatViewModel: ObservableObject {
                 } else {
                     print("❌ Не удалось извлечь текстовый ответ из финального ответа")
                     print("📄 Content: \(json["content"] ?? "nil")")
-                    
+
                     // Пытаемся обработать как обычный ответ
                     if let content = json["content"] as? [Any], let firstContent = content.first as? [String: Any] {
                         if let text = firstContent["text"] as? String {
                             print("📄 Найден альтернативный текстовый ответ: \(text)")
+
+                            isLoading = false // Финальный ответ получен, сбрасываем индикатор
+
                             let claudeMessage = Message(
                                 content: text,
                                 isFromUser: false,
@@ -1033,7 +1066,7 @@ class ChatViewModel: ObservableObject {
                             return
                         }
                     }
-                    
+
                     handleError("Неожиданный формат финального ответа. Проверьте консоль для отладочной информации.")
                 }
             } else {

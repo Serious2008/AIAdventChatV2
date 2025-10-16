@@ -108,7 +108,8 @@ class PeriodicTaskToolsProvider {
         name: String,
         input: [String: Any],
         periodicTaskService: PeriodicTaskService,
-        settings: Settings
+        settings: Settings,
+        progressCallback: ((String) -> Void)? = nil
     ) async throws -> String {
         print("🔧 PeriodicTaskTools.executeTool вызван с name: '\(name)'")
         print("📊 Входные параметры: \(input)")
@@ -128,7 +129,12 @@ class PeriodicTaskToolsProvider {
 
         case "analyze_weather_multiple_cities":
             print("🌍 Вызываю analyze_weather_multiple_cities")
-            return try await executeAnalyzeWeatherMultipleCities(input: input, service: periodicTaskService, settings: settings)
+            return try await executeAnalyzeWeatherMultipleCities(
+                input: input,
+                service: periodicTaskService,
+                settings: settings,
+                progressCallback: progressCallback
+            )
 
         default:
             print("❌ Неизвестное имя инструмента: '\(name)'")
@@ -278,7 +284,8 @@ class PeriodicTaskToolsProvider {
     private static func executeAnalyzeWeatherMultipleCities(
         input: [String: Any],
         service: PeriodicTaskService,
-        settings: Settings
+        settings: Settings,
+        progressCallback: ((String) -> Void)?
     ) async throws -> String {
         // Список городов по умолчанию - 10 крупнейших городов России
         let defaultCities = [
@@ -303,6 +310,7 @@ class PeriodicTaskToolsProvider {
         }
 
         print("🌍 Получаю погоду для \(cities.count) городов: \(cities.joined(separator: ", "))")
+        progressCallback?("🌤️ MCP Weather Server запрашивает погоду для \(cities.count) городов...")
 
         // 1. Получаем данные о погоде через MCP
         let weatherData: String
@@ -321,10 +329,12 @@ class PeriodicTaskToolsProvider {
                 return nil
             }.joined(separator: "\n")
         } catch {
+            progressCallback?("❌ Ошибка получения данных от MCP сервера")
             return "❌ Не удалось получить данные о погоде: \(error.localizedDescription)"
         }
 
         print("📄 Получен JSON погоды (\(weatherData.count) символов)")
+        progressCallback?("✅ Данные получены! Анализирую погоду с помощью Claude...")
 
         // 2. Анализируем погоду с помощью Claude
         print("🤖 Начинаю анализ погоды с помощью Claude...")
@@ -339,6 +349,7 @@ class PeriodicTaskToolsProvider {
                 switch result {
                 case .success(let analysis):
                     print("✅ Анализ погоды завершён")
+                    progressCallback?("💾 Сохраняю результат в файл...")
 
                     // 3. Сохраняем результат в файл
                     let timestamp = Int(Date().timeIntervalSince1970)
@@ -359,6 +370,7 @@ class PeriodicTaskToolsProvider {
 
                         try fullContent.write(to: fileURL, atomically: true, encoding: .utf8)
                         print("💾 Результат сохранён в файл: \(fileURL.path)")
+                        progressCallback?("✅ Готово! Формирую ответ...")
 
                         let finalResult = """
                         ✅ Анализ погоды завершён!
@@ -372,12 +384,14 @@ class PeriodicTaskToolsProvider {
                         continuation.resume(returning: finalResult)
                     } catch {
                         print("❌ Ошибка сохранения файла: \(error.localizedDescription)")
+                        progressCallback?("⚠️ Не удалось сохранить файл, но анализ готов...")
                         // Даже если не удалось сохранить, возвращаем анализ
                         continuation.resume(returning: analysis)
                     }
 
                 case .failure(let error):
                     print("❌ Ошибка анализа погоды: \(error.localizedDescription)")
+                    progressCallback?("❌ Ошибка анализа погоды")
                     continuation.resume(throwing: error)
                 }
             }
