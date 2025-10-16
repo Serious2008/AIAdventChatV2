@@ -78,17 +78,24 @@ class PeriodicTaskToolsProvider {
         input: [String: Any],
         periodicTaskService: PeriodicTaskService
     ) -> String {
+        print("🔧 PeriodicTaskTools.executeTool вызван с name: '\(name)'")
+        print("📊 Входные параметры: \(input)")
+
         switch name {
         case "start_weather_updates":
+            print("▶️ Вызываю start_weather_updates")
             return executeStartWeatherUpdates(input: input, service: periodicTaskService)
 
         case "stop_weather_updates":
+            print("⏹️ Вызываю stop_weather_updates")
             return executeStopWeatherUpdates(service: periodicTaskService)
 
         case "list_active_tasks":
+            print("📋 Вызываю list_active_tasks")
             return executeListActiveTasks(service: periodicTaskService)
 
         default:
+            print("❌ Неизвестное имя инструмента: '\(name)'")
             return "❌ Неизвестный инструмент: \(name)"
         }
     }
@@ -117,7 +124,20 @@ class PeriodicTaskToolsProvider {
             return "❌ Интервал не должен превышать 1440 минут (24 часа)"
         }
 
-        // Создаём задачу
+        // Останавливаем все существующие задачи погоды перед созданием новой
+        let existingWeatherTasks = service.activeTasks.filter {
+            $0.isActive && $0.action == "get_weather_summary"
+        }
+
+        if !existingWeatherTasks.isEmpty {
+            print("🛑 Найдено \(existingWeatherTasks.count) существующих задач погоды, останавливаю...")
+            for task in existingWeatherTasks {
+                print("🛑 Останавливаю старую задачу для города: \(task.parameters["city"] ?? "Unknown")")
+                service.stopTask(id: task.id)
+            }
+        }
+
+        // Создаём новую задачу
         let taskId = service.createTask(
             action: "get_weather_summary",
             parameters: ["city": city],
@@ -134,7 +154,15 @@ class PeriodicTaskToolsProvider {
             intervalDescription = "каждые \(hours) часа"
         }
 
-        return """
+        var resultMessage = ""
+
+        // Если были остановлены старые задачи, сообщаем об этом
+        if !existingWeatherTasks.isEmpty {
+            let stoppedCities = existingWeatherTasks.map { $0.parameters["city"] ?? "Unknown" }.joined(separator: ", ")
+            resultMessage += "🛑 Остановил предыдущие обновления погоды для: \(stoppedCities)\n\n"
+        }
+
+        resultMessage += """
         ✅ Запустил периодические обновления погоды!
 
         📍 Город: \(city)
@@ -143,6 +171,8 @@ class PeriodicTaskToolsProvider {
 
         Первое обновление отправлю прямо сейчас, а затем буду присылать автоматически.
         """
+
+        return resultMessage
     }
 
     private static func executeStopWeatherUpdates(

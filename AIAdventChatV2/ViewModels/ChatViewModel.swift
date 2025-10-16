@@ -793,13 +793,14 @@ class ChatViewModel: ObservableObject {
                 print("🔧 Выполняем инструмент: \(toolName)")
                 print("📄 ID: \(toolUseId)")
                 print("📄 Input: \(toolInput)")
-                
+
                 do {
                     // Определяем тип инструмента и выполняем
                     let result: String
 
                     // Проверяем, это инструмент Yandex Tracker или Periodic Task
                     if toolName.hasPrefix("get_yandex_tracker") {
+                        print("➡️ Распознан как Yandex Tracker инструмент")
                         // Yandex Tracker инструмент
                         result = try await YandexTrackerToolsProvider.executeTool(
                             name: toolName,
@@ -807,6 +808,7 @@ class ChatViewModel: ObservableObject {
                             trackerService: yandexTrackerService
                         )
                     } else if toolName.contains("weather") || toolName.contains("task") {
+                        print("➡️ Распознан как Periodic Task инструмент")
                         // Periodic Task инструмент
                         result = PeriodicTaskToolsProvider.executeTool(
                             name: toolName,
@@ -814,6 +816,7 @@ class ChatViewModel: ObservableObject {
                             periodicTaskService: periodicTaskService
                         )
                     } else {
+                        print("⚠️ Не распознан тип инструмента: \(toolName)")
                         result = "❌ Неизвестный тип инструмента: \(toolName)"
                     }
 
