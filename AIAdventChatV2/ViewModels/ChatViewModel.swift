@@ -30,6 +30,7 @@ class ChatViewModel: ObservableObject {
     private let localModelService = LocalModelService()
     private let yandexTrackerService = YandexTrackerService()
     private let periodicTaskService = PeriodicTaskService()
+    private let simulatorService = SimulatorService()
 
     init(settings: Settings) {
         self.settings = settings
@@ -513,6 +514,9 @@ class ChatViewModel: ObservableObject {
         // Инструменты периодических задач (всегда доступны)
         allTools.append(contentsOf: PeriodicTaskToolsProvider.getTools())
 
+        // Инструменты iOS Simulator (всегда доступны)
+        allTools.append(contentsOf: SimulatorToolsProvider.getTools())
+
         // Формируем JSON для tools если есть хотя бы один инструмент
         if !allTools.isEmpty {
             let toolsJson = allTools.map { tool in
@@ -831,6 +835,19 @@ class ChatViewModel: ObservableObject {
                             input: toolInput,
                             periodicTaskService: periodicTaskService,
                             settings: settings,
+                            progressCallback: { [weak self] progress in
+                                DispatchQueue.main.async {
+                                    self?.loadingMessage = progress
+                                }
+                            }
+                        )
+                    } else if toolName.contains("simulator") || toolName.contains("_app") {
+                        print("➡️ Распознан как iOS Simulator инструмент")
+                        // iOS Simulator инструмент
+                        result = try await SimulatorToolsProvider.executeTool(
+                            name: toolName,
+                            input: toolInput,
+                            simulatorService: simulatorService,
                             progressCallback: { [weak self] progress in
                                 DispatchQueue.main.async {
                                     self?.loadingMessage = progress
