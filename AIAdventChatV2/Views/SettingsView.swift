@@ -553,6 +553,154 @@ struct SettingsView: View {
                         }
                     }
 
+                    // MARK: - MCP Tools Settings
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("MCP Инструменты")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .padding(.bottom, 8)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.blue)
+                                Text("Включайте только необходимые инструменты для экономии токенов")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+
+                        // iOS Simulator Tools
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "iphone")
+                                            .foregroundColor(.orange)
+                                        Text("iOS Simulator")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                    }
+
+                                    Text("Управление iOS симуляторами: запуск, остановка, скриншоты, установка приложений")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Toggle("", isOn: $settings.enableSimulatorTools)
+                                    .labelsHidden()
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        // Periodic Tasks Tools
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "clock.arrow.circlepath")
+                                            .foregroundColor(.green)
+                                        Text("Периодические задачи")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                    }
+
+                                    Text("Создание автоматических повторяющихся задач (например, ежечасная погода)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Toggle("", isOn: $settings.enablePeriodicTaskTools)
+                                    .labelsHidden()
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        // Yandex Tracker Tools
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "list.bullet.rectangle")
+                                            .foregroundColor(.orange)
+                                        Text("Yandex Tracker")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                    }
+
+                                    Text("Работа с задачами Yandex Tracker: получение статистики, поиск, анализ")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Toggle("", isOn: $settings.enableYandexTrackerTools)
+                                    .labelsHidden()
+                                    .disabled(!settings.isYandexTrackerConfigured)
+                            }
+
+                            if !settings.isYandexTrackerConfigured {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .foregroundColor(.orange)
+                                    Text("Требуется настройка Yandex Tracker")
+                                        .font(.caption)
+                                        .foregroundColor(.orange)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        // Статистика использования токенов
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Примерное потребление токенов:")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            let activeToolsCount = [
+                                settings.enableSimulatorTools,
+                                settings.enablePeriodicTaskTools,
+                                settings.enableYandexTrackerTools && settings.isYandexTrackerConfigured
+                            ].filter { $0 }.count
+
+                            let estimatedTokens = activeToolsCount * 500 + 200 // ~500 токенов на набор инструментов + базовый промпт
+
+                            HStack(spacing: 4) {
+                                Image(systemName: "chart.bar")
+                                    .foregroundColor(.blue)
+                                Text("~\(estimatedTokens) токенов на запрос")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            HStack(spacing: 4) {
+                                Image(systemName: activeToolsCount == 0 ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                                    .foregroundColor(activeToolsCount == 0 ? .green : .orange)
+                                    .font(.caption)
+                                Text(activeToolsCount == 0 ? "Все инструменты выключены - минимум токенов" : "Активно \(activeToolsCount) набор(ов) инструментов")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding()
+                        .background(Color.blue.opacity(0.05))
+                        .cornerRadius(8)
+                    }
+
                     // Информация секция
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Информация")

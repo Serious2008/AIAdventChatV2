@@ -81,6 +81,26 @@ class Settings: ObservableObject {
         }
     }
 
+    // MARK: - MCP Tools Settings
+
+    @Published var enableYandexTrackerTools: Bool {
+        didSet {
+            UserDefaults.standard.set(enableYandexTrackerTools, forKey: "EnableYandexTrackerTools")
+        }
+    }
+
+    @Published var enablePeriodicTaskTools: Bool {
+        didSet {
+            UserDefaults.standard.set(enablePeriodicTaskTools, forKey: "EnablePeriodicTaskTools")
+        }
+    }
+
+    @Published var enableSimulatorTools: Bool {
+        didSet {
+            UserDefaults.standard.set(enableSimulatorTools, forKey: "EnableSimulatorTools")
+        }
+    }
+
     init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ClaudeAPIKey") ?? ""
         self.huggingFaceApiKey = UserDefaults.standard.string(forKey: "HuggingFaceAPIKey") ?? ""
@@ -108,6 +128,11 @@ class Settings: ObservableObject {
 
         self.yandexTrackerOrgId = UserDefaults.standard.string(forKey: "YandexTrackerOrgId") ?? ""
         self.yandexTrackerToken = UserDefaults.standard.string(forKey: "YandexTrackerToken") ?? ""
+
+        // MCP Tools Settings - по умолчанию все выключены для экономии токенов
+        self.enableYandexTrackerTools = UserDefaults.standard.object(forKey: "EnableYandexTrackerTools") as? Bool ?? false
+        self.enablePeriodicTaskTools = UserDefaults.standard.object(forKey: "EnablePeriodicTaskTools") as? Bool ?? false
+        self.enableSimulatorTools = UserDefaults.standard.object(forKey: "EnableSimulatorTools") as? Bool ?? true
     }
 
     var isConfigured: Bool {
