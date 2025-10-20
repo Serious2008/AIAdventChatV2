@@ -10,6 +10,13 @@ import Foundation
 /// Сервис для анализа структуры проекта
 class ProjectAnalyzer {
 
+    /// Тип запроса на анализ
+    enum AnalysisType {
+        case structure      // Только структура проекта
+        case bugs          // Только баги и проблемы
+        case full          // Полный анализ
+    }
+
     /// Результат анализа проекта
     struct AnalysisResult {
         let structure: String
@@ -46,6 +53,7 @@ class ProjectAnalyzer {
     private static func findProjectPath() -> String {
         // Получаем путь к текущему исполняемому файлу
         let bundlePath = Bundle.main.bundlePath
+        print("📂 Bundle path: \(bundlePath)")
 
         // Проект находится в родительской директории от .app
         let projectPath = (bundlePath as NSString)
@@ -55,22 +63,29 @@ class ProjectAnalyzer {
 
         // Если мы в режиме разработки, ищем исходники
         let sourcePath = "\(projectPath)/AIAdventChatV2"
+        print("📁 Проверяю путь: \(sourcePath)")
 
         if FileManager.default.fileExists(atPath: sourcePath) {
+            print("✅ Путь найден: \(sourcePath)")
             return sourcePath
         }
 
         // Альтернативный путь
         let altPath = "/Users/sergeymarkov/Documents/PetProject/AIAdventChatV2/AIAdventChatV2"
+        print("📁 Проверяю альтернативный путь: \(altPath)")
+
         if FileManager.default.fileExists(atPath: altPath) {
+            print("✅ Альтернативный путь найден: \(altPath)")
             return altPath
         }
 
+        print("⚠️ Путь не найден, использую: \(sourcePath)")
         return sourcePath
     }
 
     /// Строит дерево структуры проекта
     private static func buildProjectStructure(at path: String) -> String {
+        print("🔍 Сканирую структуру проекта по пути: \(path)")
         var result = "# 📁 СТРУКТУРА ПРОЕКТА\n\n"
 
         let fileManager = FileManager.default
@@ -101,6 +116,8 @@ class ProjectAnalyzer {
                 }
             }
         }
+
+        print("📊 Найдено файлов: Models=\(models.count), Views=\(views.count), ViewModels=\(viewModels.count), Services=\(services.count), Other=\(other.count)")
 
         result += "## Models (\(models.count) файлов)\n"
         models.sorted().forEach { result += "- \($0)\n" }
@@ -268,15 +285,103 @@ class ProjectAnalyzer {
         return contents
     }
 
-    /// Формирует полный отчет для отправки Claude
-    static func generateReport() -> String {
+    /// Формирует отчет для отправки Claude в зависимости от типа запроса
+    static func generateReport(type: AnalysisType = .full) -> String {
         let result = analyzeProject()
 
-        var report = """
-        # АВТОМАТИЧЕСКИЙ АНАЛИЗ ПРОЕКТА AIAdventChatV2
+        switch type {
+        case .structure:
+            return generateStructureReport(result: result)
+        case .bugs:
+            return generateBugsReport(result: result)
+        case .full:
+            return generateFullReport(result: result)
+        }
+    }
 
-        Проект: macOS приложение на Swift/SwiftUI
-        Назначение: AI чат-ассистент с интеграцией Claude API, MCP серверов, Yandex Tracker
+    /// Генерирует отчёт только о структуре проекта
+    private static func generateStructureReport(result: AnalysisResult) -> String {
+        var report = """
+        ЭТО СТРУКТУРА РЕАЛЬНОГО ПРОЕКТА AIAdventChatV2.
+
+        ════════════════════════════════════════════════════════════════════
+
+        """
+
+        report += result.statistics
+        report += "\n\n"
+        report += result.structure
+
+        report += """
+
+        ════════════════════════════════════════════════════════════════════
+
+        # 🎯 ТВОЯ ЗАДАЧА
+
+        Выше - РЕАЛЬНАЯ структура проекта AIAdventChatV2 (macOS приложение на Swift/SwiftUI).
+
+        Опиши архитектуру на основе ТОЛЬКО этих данных:
+
+        1. **Общая структура**: Сколько файлов и какого типа
+        2. **Архитектурный паттерн**: MVVM или другой (по найденным папкам)
+        3. **Основные компоненты**: Какие модули видны по названиям файлов
+        4. **Размер проекта**: Общая оценка на основе статистики
+
+        ⚠️ ВАЖНО:
+        - Упоминай ТОЛЬКО файлы из списка выше
+        - НЕ придумывай несуществующие компоненты
+        - Используй РЕАЛЬНЫЕ цифры из статистики
+
+        Начни со слов: "Структура проекта AIAdventChatV2..."
+        """
+
+        return report
+    }
+
+    /// Генерирует отчёт только о багах и проблемах
+    private static func generateBugsReport(result: AnalysisResult) -> String {
+        var report = """
+        НАЙДЕННЫЕ ПРОБЛЕМЫ В РЕАЛЬНОМ ПРОЕКТЕ AIAdventChatV2.
+
+        ════════════════════════════════════════════════════════════════════
+
+        """
+
+        report += result.problems
+
+        report += """
+
+        ════════════════════════════════════════════════════════════════════
+
+        # 🎯 ТВОЯ ЗАДАЧА
+
+        Выше - РЕАЛЬНЫЕ проблемы найденные в проекте AIAdventChatV2.
+
+        Проанализируй на основе ТОЛЬКО этих данных:
+
+        1. **Критичность**: Оцени серьёзность найденных проблем
+        2. **Приоритеты**: Что исправить в первую очередь
+        3. **Конкретные рекомендации**: Как исправить (с примерами)
+
+        ⚠️ ВАЖНО:
+        - Упоминай ТОЛЬКО файлы и проблемы из списка выше
+        - Используй РЕАЛЬНЫЕ цифры
+        - Не придумывай проблемы, которых нет в списке
+
+        Начни со слов: "На основе сканирования найдены следующие проблемы..."
+        """
+
+        return report
+    }
+
+    /// Генерирует полный отчёт
+    private static func generateFullReport(result: AnalysisResult) -> String {
+        var report = """
+        ЭТО РЕАЛЬНЫЕ ДАННЫЕ О ПРОЕКТЕ AIAdventChatV2. НЕ придумывай абстрактный проект!
+
+        ИСПОЛЬЗУЙ ТОЛЬКО ЭТУ ИНФОРМАЦИЮ НИЖЕ. Все файлы и цифры - РЕАЛЬНЫЕ.
+
+        ════════════════════════════════════════════════════════════════════
 
         """
 
@@ -286,31 +391,28 @@ class ProjectAnalyzer {
         report += "\n\n"
         report += result.problems
 
-        report += "\n\n# 📄 СОДЕРЖИМОЕ КЛЮЧЕВЫХ ФАЙЛОВ\n\n"
-        for (file, content) in result.fileContents {
-            report += "## \(file)\n"
-            report += "```swift\n"
-            report += content
-            report += "\n```\n\n"
-        }
-
         report += """
 
+        ════════════════════════════════════════════════════════════════════
 
-        # 🎯 ЗАДАЧА
+        # 🎯 ТВОЯ ЗАДАЧА
 
-        На основе предоставленной информации:
-        1. Проанализируй архитектуру проекта
-        2. Оцени качество кода
-        3. Укажи на критические проблемы
-        4. Дай конкретные рекомендации по улучшению
+        Проект AIAdventChatV2 - это РЕАЛЬНЫЙ macOS Swift/SwiftUI проект.
+        Выше приведены РЕАЛЬНЫЕ данные сканирования.
 
-        Сосредоточься на:
-        - Memory leaks (retain cycles)
-        - Неправильное использование async/await
-        - Отсутствие обработки ошибок
-        - Нарушение принципов SOLID
-        - Рефакторинг сложных методов
+        На основе ТОЛЬКО этих данных:
+
+        1. **Архитектура**: Опиши найденную структуру (Models, Views, ViewModels, Services)
+        2. **Проблемы**: Проанализируй КОНКРЕТНЫЕ найденные проблемы (force unwrapping и т.д.)
+        3. **Рекомендации**: Дай советы на основе РЕАЛЬНОЙ статистики
+
+        ⚠️ ВАЖНО:
+        - НЕ придумывай файлы, которых нет в списке выше
+        - НЕ придумывай абстрактные примеры
+        - Используй ТОЛЬКО те цифры, которые указаны в статистике
+        - Упоминай ТОЛЬКО те файлы, которые перечислены в структуре
+
+        Начни анализ со слов: "На основе реального сканирования проекта AIAdventChatV2..."
         """
 
         return report

@@ -511,20 +511,27 @@ class ChatViewModel: ObservableObject {
 
         // Формируем историю сообщений для контекста
         var messagesArray: [[String: String]] = []
-        if conversationMode == .collectingRequirements {
-            // Включаем всю историю диалога для сбора ТЗ (и вопросы Claude, и ответы пользователя)
-            for msg in messages {
-                messagesArray.append([
-                    "role": msg.isFromUser ? "user" : "assistant",
-                    "content": msg.content
-                ])
+
+        // Включаем историю сообщений (исключая системные сообщения)
+        for msg in messages {
+            // Пропускаем системные сообщения (индикаторы прогресса и т.д.)
+            if msg.isSystemMessage == true {
+                continue
             }
+
+            messagesArray.append([
+                "role": msg.isFromUser ? "user" : "assistant",
+                "content": msg.content
+            ])
         }
+
         // Добавляем текущее сообщение
         messagesArray.append([
             "role": "user",
             "content": message
         ])
+
+        print("📨 Отправляем \(messagesArray.count) сообщений в историю (включая текущее)")
 
         // Добавляем инструменты если Yandex Tracker настроен
         var requestBody: [String: Any] = [
@@ -1160,16 +1167,55 @@ class ChatViewModel: ObservableObject {
             "найди ошибки",
             "структура проекта",
             "архитектура проекта",
+            "построй структуру",
+            "построить структуру",
+            "покажи структуру",
+            "scan project",
             "analyze project",
             "find bugs",
-            "project structure"
+            "project structure",
+            "build structure"
         ]
 
-        return keywords.contains { lowercased.contains($0) }
+        let shouldAnalyze = keywords.contains { lowercased.contains($0) }
+
+        if shouldAnalyze {
+            print("✅ Детектирован запрос на анализ проекта: '\(message)'")
+        }
+
+        return shouldAnalyze
+    }
+
+    /// Определяет тип запроса на анализ
+    private func getAnalysisType(from message: String) -> ProjectAnalyzer.AnalysisType {
+        let lowercased = message.lowercased()
+
+        // Проверяем запросы на структуру
+        if lowercased.contains("структур") || lowercased.contains("архитектур") ||
+           lowercased.contains("structure") || lowercased.contains("построй") ||
+           lowercased.contains("покажи") || lowercased.contains("build") {
+            print("📐 Тип анализа: Структура")
+            return .structure
+        }
+
+        // Проверяем запросы на баги
+        if lowercased.contains("баг") || lowercased.contains("ошиб") ||
+           lowercased.contains("проблем") || lowercased.contains("bug") ||
+           lowercased.contains("error") || lowercased.contains("issue") {
+            print("🐛 Тип анализа: Баги")
+            return .bugs
+        }
+
+        // Полный анализ по умолчанию
+        print("📊 Тип анализа: Полный")
+        return .full
     }
 
     /// Выполняет автоматический анализ проекта
     private func analyzeProject(originalMessage: String) {
+        // Определяем тип анализа
+        let analysisType = getAnalysisType(from: originalMessage)
+
         // Добавляем системное сообщение о начале анализа
         let systemMessage = Message(
             content: "🔍 Сканирую проект AIAdventChatV2...",
@@ -1180,15 +1226,15 @@ class ChatViewModel: ObservableObject {
 
         // Выполняем анализ в фоновом потоке
         Task.detached {
-            // Генерируем полный отчёт о проекте
-            let report = ProjectAnalyzer.generateReport()
+            // Генерируем отчёт в зависимости от типа запроса
+            let report = ProjectAnalyzer.generateReport(type: analysisType)
 
             // Возвращаемся в главный поток для обновления UI
             await MainActor.run {
                 // Обновляем системное сообщение
                 if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
                     let updatedMessage = Message(
-                        content: "✅ Проект проанализирован. Отправляю данные Claude для оценки...",
+                        content: "✅ Проект проанализирован. Отправляю данные Claude...",
                         isFromUser: false,
                         isSystemMessage: true
                     )
