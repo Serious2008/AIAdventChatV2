@@ -68,20 +68,48 @@ async function bootSimulator(udidOrName) {
 // Остановить симулятор
 async function shutdownSimulator(udidOrName) {
     try {
+        console.error(`🛑 Останавливаю симулятор: ${udidOrName}`);
         const simulators = await listSimulators();
         let targetUdid = udidOrName;
         const simByName = simulators.find(s => s.name.toLowerCase().includes(udidOrName.toLowerCase()));
         if (simByName) {
+            console.error(`✅ Найден симулятор по имени: ${simByName.name} (${simByName.udid})`);
             targetUdid = simByName.udid;
         }
         const currentSim = simulators.find(s => s.udid === targetUdid);
         if (currentSim && currentSim.state === "Shutdown") {
+            console.error(`ℹ️ Симулятор уже остановлен`);
             return `✅ Симулятор "${currentSim.name}" уже остановлен`;
         }
+        console.error(`🛑 Выключаю симулятор: xcrun simctl shutdown ${targetUdid}`);
         await execAsync(`xcrun simctl shutdown ${targetUdid}`);
-        return `✅ Симулятор "${currentSim?.name || targetUdid}" успешно остановлен`;
+        console.error(`✅ Симулятор остановлен`);
+        // Проверяем, остались ли запущенные симуляторы
+        const updatedSimulators = await listSimulators();
+        const bootedSimulators = updatedSimulators.filter(s => s.state === "Booted");
+        const hasBootedSimulators = bootedSimulators.length > 0;
+        if (!hasBootedSimulators) {
+            // Если все симуляторы выключены, закрываем Simulator.app
+            console.error(`🔴 Все симуляторы выключены, закрываю Simulator.app`);
+            try {
+                await execAsync('killall Simulator');
+                console.error(`✅ Simulator.app закрыт`);
+                return `✅ Симулятор "${currentSim?.name || targetUdid}" остановлен. Все симуляторы выключены, Simulator.app закрыт.`;
+            }
+            catch (killError) {
+                // Не критично если приложение уже закрыто
+                console.error(`ℹ️ Simulator.app уже закрыт или не запущен`);
+                return `✅ Симулятор "${currentSim?.name || targetUdid}" остановлен. Simulator.app был уже закрыт.`;
+            }
+        }
+        else {
+            console.error(`ℹ️ Остались запущенные симуляторы (${bootedSimulators.length}), оставляю Simulator.app открытым`);
+            const bootedNames = bootedSimulators.map(s => s.name).join(', ');
+            return `✅ Симулятор "${currentSim?.name || targetUdid}" остановлен. Simulator.app остаётся открытым (работают: ${bootedNames})`;
+        }
     }
     catch (error) {
+        console.error(`❌ Ошибка при остановке симулятора: ${error.message}`);
         throw new Error(`Не удалось остановить симулятор: ${error.message}`);
     }
 }
@@ -151,16 +179,63 @@ async function takeScreenshot(udidOrName, outputPath) {
 // Получить информацию о приложении
 async function getAppInfo(udidOrName) {
     try {
+        console.error(`📋 Получаю список приложений для: ${udidOrName}`);
         const simulators = await listSimulators();
         let targetUdid = udidOrName;
+        let simName = udidOrName;
         const simByName = simulators.find(s => s.name.toLowerCase().includes(udidOrName.toLowerCase()));
         if (simByName) {
+            console.error(`✅ Найден симулятор: ${simByName.name} (${simByName.udid})`);
             targetUdid = simByName.udid;
+            simName = simByName.name;
         }
+        console.error(`🔍 Выполняю: xcrun simctl listapps ${targetUdid}`);
         const { stdout } = await execAsync(`xcrun simctl listapps ${targetUdid}`);
-        return stdout;
+        // Парсим plist вывод для более читаемого формата
+        console.error(`📊 Парсю результат...`);
+        // Извлекаем Bundle IDs из вывода
+        const bundleIdRegex = /"([^"]+)"\s*=/g;
+        const matches = [...stdout.matchAll(bundleIdRegex)];
+        const bundleIds = matches.map(m => m[1]);
+        // Извлекаем CFBundleDisplayName для каждого приложения
+        const apps = [];
+        for (const bundleId of bundleIds) {
+            // Находим блок этого приложения
+            const appBlockRegex = new RegExp(`"${bundleId.replace(/\./g, '\\.')}"\\s*=\\s*{([^}]+)}`, 's');
+            const appBlock = stdout.match(appBlockRegex);
+            if (appBlock) {
+                const block = appBlock[1];
+                // Извлекаем CFBundleDisplayName
+                const displayNameMatch = block.match(/CFBundleDisplayName\s*=\s*([^;]+);/);
+                const displayName = displayNameMatch ? displayNameMatch[1].trim() : bundleId;
+                // Извлекаем ApplicationType
+                const typeMatch = block.match(/ApplicationType\s*=\s*([^;]+);/);
+                const type = typeMatch ? typeMatch[1].trim() : 'Unknown';
+                apps.push({ bundleId, displayName, type });
+            }
+        }
+        // Разделяем на системные и пользовательские
+        const systemApps = apps.filter(a => a.type === 'System');
+        const userApps = apps.filter(a => a.type === 'User');
+        console.error(`✅ Найдено приложений: ${apps.length} (${systemApps.length} системных, ${userApps.length} пользовательских)`);
+        let result = `📱 Установленные приложения на симуляторе "${simName}":\n\n`;
+        if (userApps.length > 0) {
+            result += `👤 ПОЛЬЗОВАТЕЛЬСКИЕ ПРИЛОЖЕНИЯ (${userApps.length}):\n`;
+            userApps.forEach(app => {
+                result += `  • ${app.displayName}\n`;
+                result += `    Bundle ID: ${app.bundleId}\n`;
+            });
+            result += '\n';
+        }
+        result += `🍎 СИСТЕМНЫЕ ПРИЛОЖЕНИЯ (${systemApps.length}):\n`;
+        systemApps.forEach(app => {
+            result += `  • ${app.displayName}\n`;
+            result += `    Bundle ID: ${app.bundleId}\n`;
+        });
+        return result;
     }
     catch (error) {
+        console.error(`❌ Ошибка получения списка приложений: ${error.message}`);
         throw new Error(`Не удалось получить список приложений: ${error.message}`);
     }
 }
@@ -200,7 +275,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             {
                 name: "shutdown_simulator",
-                description: "Остановить iOS симулятор. Можно указать UDID или имя.",
+                description: "Остановить iOS симулятор. Можно указать UDID или имя. Если это последний запущенный симулятор, автоматически закроется приложение Simulator.app.",
                 inputSchema: {
                     type: "object",
                     properties: {

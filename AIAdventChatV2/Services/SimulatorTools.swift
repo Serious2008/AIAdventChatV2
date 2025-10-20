@@ -63,11 +63,13 @@ class SimulatorToolsProvider {
         return ClaudeTool(
             name: "shutdown_simulator",
             description: """
-            Остановить запущенный iOS симулятор.
+            Остановить запущенный iOS симулятор и закрыть приложение Simulator.app.
             Используй этот инструмент когда пользователь просит:
             - "Останови симулятор"
             - "Выключи iPhone симулятор"
             - "Закрой симулятор"
+
+            ВАЖНО: Если это последний запущенный симулятор, приложение Simulator.app будет автоматически закрыто.
             """,
             properties: [
                 "simulator": ClaudeTool.InputSchema.Property(
