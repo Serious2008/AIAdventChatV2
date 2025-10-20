@@ -1211,14 +1211,48 @@ class ChatViewModel: ObservableObject {
         return .full
     }
 
+    /// Извлекает путь к проекту из сообщения пользователя
+    private func extractProjectPath(from message: String) -> String? {
+        // Ищем паттерны указания пути
+        // Примеры: "проанализируй /path/to/project", "структура ~/Documents/MyProject"
+
+        let patterns = [
+            #"(/[\w\-/\.]+)"#,           // Unix paths: /Users/name/project
+            #"(~/[\w\-/\.]+)"#,          // Home paths: ~/Documents/project
+            #"([A-Z]:\\[\w\-\\\.]+)"#    // Windows paths: C:\Users\project
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: message, range: NSRange(message.startIndex..., in: message)),
+               let range = Range(match.range(at: 1), in: message) {
+                var path = String(message[range])
+
+                // Раскрываем ~ в полный путь
+                if path.hasPrefix("~") {
+                    path = path.replacingOccurrences(of: "~", with: FileManager.default.homeDirectoryForCurrentUser.path)
+                }
+
+                print("📂 Извлечён путь из сообщения: \(path)")
+                return path
+            }
+        }
+
+        return nil
+    }
+
     /// Выполняет автоматический анализ проекта
     private func analyzeProject(originalMessage: String) {
         // Определяем тип анализа
         let analysisType = getAnalysisType(from: originalMessage)
 
+        // Извлекаем путь к проекту (если указан)
+        let customPath = extractProjectPath(from: originalMessage)
+
         // Добавляем системное сообщение о начале анализа
+        let projectInfo = customPath != nil ? "проект по пути \(customPath!)" : "проект AIAdventChatV2"
         let systemMessage = Message(
-            content: "🔍 Сканирую проект AIAdventChatV2...",
+            content: "🔍 Сканирую \(projectInfo)...",
             isFromUser: false,
             isSystemMessage: true
         )
@@ -1227,7 +1261,7 @@ class ChatViewModel: ObservableObject {
         // Выполняем анализ в фоновом потоке
         Task.detached {
             // Генерируем отчёт в зависимости от типа запроса
-            let report = ProjectAnalyzer.generateReport(type: analysisType)
+            let report = ProjectAnalyzer.generateReport(type: analysisType, customPath: customPath)
 
             // Возвращаемся в главный поток для обновления UI
             await MainActor.run {

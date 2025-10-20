@@ -26,8 +26,9 @@ class ProjectAnalyzer {
     }
 
     /// Анализирует проект и возвращает структурированные данные
-    static func analyzeProject() -> AnalysisResult {
-        let projectPath = findProjectPath()
+    static func analyzeProject(customPath: String? = nil) -> AnalysisResult {
+        let projectPath = customPath ?? findProjectPath()
+        print("🎯 Анализирую проект по пути: \(projectPath)")
 
         // Собираем структуру проекта
         let structure = buildProjectStructure(at: projectPath)
@@ -286,23 +287,25 @@ class ProjectAnalyzer {
     }
 
     /// Формирует отчет для отправки Claude в зависимости от типа запроса
-    static func generateReport(type: AnalysisType = .full) -> String {
-        let result = analyzeProject()
+    static func generateReport(type: AnalysisType = .full, customPath: String? = nil) -> String {
+        let result = analyzeProject(customPath: customPath)
 
         switch type {
         case .structure:
-            return generateStructureReport(result: result)
+            return generateStructureReport(result: result, projectPath: customPath)
         case .bugs:
-            return generateBugsReport(result: result)
+            return generateBugsReport(result: result, projectPath: customPath)
         case .full:
-            return generateFullReport(result: result)
+            return generateFullReport(result: result, projectPath: customPath)
         }
     }
 
     /// Генерирует отчёт только о структуре проекта
-    private static func generateStructureReport(result: AnalysisResult) -> String {
+    private static func generateStructureReport(result: AnalysisResult, projectPath: String?) -> String {
+        let projectName = projectPath != nil ? "проекта по пути \(projectPath!)" : "проекта AIAdventChatV2"
+
         var report = """
-        ЭТО СТРУКТУРА РЕАЛЬНОГО ПРОЕКТА AIAdventChatV2.
+        ЭТО СТРУКТУРА РЕАЛЬНОГО \(projectName).
 
         ════════════════════════════════════════════════════════════════════
 
@@ -339,9 +342,11 @@ class ProjectAnalyzer {
     }
 
     /// Генерирует отчёт только о багах и проблемах
-    private static func generateBugsReport(result: AnalysisResult) -> String {
+    private static func generateBugsReport(result: AnalysisResult, projectPath: String?) -> String {
+        let projectName = projectPath != nil ? "проекте по пути \(projectPath!)" : "проекте AIAdventChatV2"
+
         var report = """
-        НАЙДЕННЫЕ ПРОБЛЕМЫ В РЕАЛЬНОМ ПРОЕКТЕ AIAdventChatV2.
+        НАЙДЕННЫЕ ПРОБЛЕМЫ В РЕАЛЬНОМ \(projectName).
 
         ════════════════════════════════════════════════════════════════════
 
@@ -375,9 +380,11 @@ class ProjectAnalyzer {
     }
 
     /// Генерирует полный отчёт
-    private static func generateFullReport(result: AnalysisResult) -> String {
+    private static func generateFullReport(result: AnalysisResult, projectPath: String?) -> String {
+        let projectName = projectPath != nil ? "проекте по пути \(projectPath!)" : "проекте AIAdventChatV2"
+
         var report = """
-        ЭТО РЕАЛЬНЫЕ ДАННЫЕ О ПРОЕКТЕ AIAdventChatV2. НЕ придумывай абстрактный проект!
+        ЭТО РЕАЛЬНЫЕ ДАННЫЕ О \(projectName). НЕ придумывай абстрактный проект!
 
         ИСПОЛЬЗУЙ ТОЛЬКО ЭТУ ИНФОРМАЦИЮ НИЖЕ. Все файлы и цифры - РЕАЛЬНЫЕ.
 
