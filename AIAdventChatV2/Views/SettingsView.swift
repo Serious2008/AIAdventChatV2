@@ -701,6 +701,125 @@ struct SettingsView: View {
                         .cornerRadius(8)
                     }
 
+                    // MARK: - History Compression Settings
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("Сжатие истории диалога")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .padding(.bottom, 8)
+
+                        // Enable Compression
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Image(systemName: "arrow.down.circle")
+                                            .foregroundColor(.purple)
+                                        Text("Включить сжатие")
+                                            .font(.headline)
+                                            .fontWeight(.semibold)
+                                    }
+
+                                    Text("Автоматически создавать summary для старых сообщений, уменьшая потребление токенов")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                Toggle("", isOn: $settings.historyCompressionEnabled)
+                                    .labelsHidden()
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
+
+                        // Compression Threshold
+                        if settings.historyCompressionEnabled {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Порог сжатия")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+
+                                HStack {
+                                    Text("5")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Slider(value: Binding(
+                                        get: { Double(settings.compressionThreshold) },
+                                        set: { settings.compressionThreshold = Int($0) }
+                                    ), in: 5...30, step: 5)
+                                    Text("30")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(settings.compressionThreshold)")
+                                        .font(.body)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.purple)
+                                        .frame(width: 40)
+                                }
+
+                                Text("Сжимать историю каждые \(settings.compressionThreshold) сообщений")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(12)
+
+                            // Recent Messages to Keep
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Сохранять недавние сообщения")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+
+                                HStack {
+                                    Text("3")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Slider(value: Binding(
+                                        get: { Double(settings.recentMessagesToKeep) },
+                                        set: { settings.recentMessagesToKeep = Int($0) }
+                                    ), in: 3...10, step: 1)
+                                    Text("10")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Text("\(settings.recentMessagesToKeep)")
+                                        .font(.body)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.purple)
+                                        .frame(width: 40)
+                                }
+
+                                Text("Количество последних сообщений, которые остаются без сжатия")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(12)
+
+                            // Info Box
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "info.circle")
+                                        .foregroundColor(.blue)
+                                    Text("Как это работает?")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                }
+
+                                Text("При достижении порога старые сообщения автоматически сжимаются в краткий summary с помощью Claude. Это позволяет сохранить контекст разговора, значительно уменьшив потребление токенов.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding()
+                            .background(Color.blue.opacity(0.05))
+                            .cornerRadius(8)
+                        }
+                    }
+
                     // Информация секция
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Информация")

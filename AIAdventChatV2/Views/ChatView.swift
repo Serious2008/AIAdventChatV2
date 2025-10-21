@@ -98,6 +98,18 @@ struct ChatView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 12) {
+                        // Compression Stats (if enabled and has data)
+                        if settings.historyCompressionEnabled &&
+                           (viewModel.compressionStats.totalCompressions > 0 ||
+                            !viewModel.compressedHistory.summaries.isEmpty) {
+                            CompressionStatsView(
+                                stats: viewModel.compressionStats,
+                                compressedHistory: viewModel.compressedHistory
+                            )
+                            .padding(.horizontal)
+                            .padding(.top)
+                        }
+
                         if viewModel.messages.isEmpty {
                             VStack(spacing: 16) {
                                 Image(systemName: "message.circle")

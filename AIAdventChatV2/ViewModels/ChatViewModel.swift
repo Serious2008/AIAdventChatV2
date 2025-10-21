@@ -23,6 +23,11 @@ class ChatViewModel: ObservableObject {
     @Published var loadingMessage: String = "Claude печатает..."
     @Published var summarizationProgress: String?
 
+    // History Compression
+    @Published var compressedHistory: CompressedConversationHistory = CompressedConversationHistory()
+    @Published var compressionStats: CompressionStats = CompressionStats()
+    @Published var isCompressing: Bool = false
+
     internal let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
@@ -31,6 +36,9 @@ class ChatViewModel: ObservableObject {
     private let yandexTrackerService = YandexTrackerService()
     private let periodicTaskService = PeriodicTaskService()
     private let simulatorService = SimulatorService()
+    private lazy var compressionService: HistoryCompressionService = {
+        HistoryCompressionService(claudeService: claudeService, settings: settings)
+    }()
 
     init(settings: Settings) {
         self.settings = settings
@@ -509,21 +517,8 @@ class ChatViewModel: ObservableObject {
             print(systemPrompt)
         }
 
-        // Формируем историю сообщений для контекста
-        var messagesArray: [[String: String]] = []
-
-        // Включаем историю сообщений (исключая системные сообщения)
-        for msg in messages {
-            // Пропускаем системные сообщения (индикаторы прогресса и т.д.)
-            if msg.isSystemMessage == true {
-                continue
-            }
-
-            messagesArray.append([
-                "role": msg.isFromUser ? "user" : "assistant",
-                "content": msg.content
-            ])
-        }
+        // Формируем историю сообщений для контекста (с поддержкой компрессии)
+        var messagesArray = buildMessageArray()
 
         // Добавляем текущее сообщение
         messagesArray.append([
@@ -720,6 +715,9 @@ class ChatViewModel: ObservableObject {
                                     )
                                 )
                                 messages.append(claudeMessage)
+
+                                // Check if compression is needed
+                                compressHistoryIfNeeded()
                             }
                         }
                     }
@@ -1106,6 +1104,9 @@ class ChatViewModel: ObservableObject {
                         )
                     )
                     messages.append(claudeMessage)
+
+                    // Check if compression is needed
+                    compressHistoryIfNeeded()
                 } else {
                     print("❌ Не удалось извлечь текстовый ответ из финального ответа")
                     print("📄 Content: \(json["content"] ?? "nil")")
@@ -1130,6 +1131,9 @@ class ChatViewModel: ObservableObject {
                                 )
                             )
                             messages.append(claudeMessage)
+
+                            // Check if compression is needed
+                            compressHistoryIfNeeded()
                             return
                         }
                     }
@@ -1152,6 +1156,99 @@ class ChatViewModel: ObservableObject {
     func clearChat() {
         messages.removeAll()
         errorMessage = nil
+        compressedHistory = CompressedConversationHistory()
+        compressionStats = CompressionStats()
+    }
+
+    // MARK: - History Compression
+
+    /// Automatically compress history if threshold is reached
+    private func compressHistoryIfNeeded() {
+        guard settings.historyCompressionEnabled else { return }
+        guard !isCompressing else { return }
+
+        // Update compression service configuration
+        compressionService.compressionThreshold = settings.compressionThreshold
+        compressionService.recentMessagesToKeep = settings.recentMessagesToKeep
+
+        // Filter out system messages for compression check
+        let contentMessages = messages.filter { !$0.isSystemMessage }
+
+        guard compressionService.shouldCompress(messageCount: contentMessages.count) else { return }
+
+        Task {
+            await performCompression()
+        }
+    }
+
+    /// Perform actual compression
+    private func performCompression() async {
+        await MainActor.run {
+            isCompressing = true
+            loadingMessage = "Сжимаю историю диалога..."
+        }
+
+        do {
+            // Compress history
+            let newCompressedHistory = try await compressionService.compressHistory(
+                compressedHistory,
+                allMessages: messages
+            )
+
+            await MainActor.run {
+                // Update compressed history
+                self.compressedHistory = newCompressedHistory
+
+                // Update statistics
+                if let lastSummary = newCompressedHistory.summaries.last {
+                    compressionStats.recordCompression(summary: lastSummary)
+                }
+
+                // Update messages to keep only recent ones
+                let contentMessages = messages.filter { !$0.isSystemMessage }
+                let recentCount = min(settings.recentMessagesToKeep, contentMessages.count)
+                let recentMessages = Array(contentMessages.suffix(recentCount))
+
+                // Keep system messages and recent content messages
+                messages = messages.filter { $0.isSystemMessage } + recentMessages
+
+                isCompressing = false
+                loadingMessage = "Claude печатает..."
+
+                print("✅ История сжата. Сообщений: \(contentMessages.count) → \(recentMessages.count)")
+                print("📊 Сэкономлено токенов: \(compressionStats.totalTokensSaved)")
+            }
+        } catch {
+            await MainActor.run {
+                isCompressing = false
+                loadingMessage = "Claude печатает..."
+                print("❌ Ошибка сжатия истории: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// Get message array for API calls (with compression support)
+    private func buildMessageArray() -> [[String: String]] {
+        if settings.historyCompressionEnabled && !compressedHistory.summaries.isEmpty {
+            // Use compressed history
+            return compressedHistory.buildMessageArray()
+        } else {
+            // Use regular history
+            var messagesArray: [[String: String]] = []
+
+            for msg in messages {
+                if msg.isSystemMessage {
+                    continue
+                }
+
+                messagesArray.append([
+                    "role": msg.isFromUser ? "user" : "assistant",
+                    "content": msg.content
+                ])
+            }
+
+            return messagesArray
+        }
     }
 
     // MARK: - Project Analysis

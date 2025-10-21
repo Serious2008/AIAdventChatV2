@@ -101,6 +101,26 @@ class Settings: ObservableObject {
         }
     }
 
+    // MARK: - History Compression Settings
+
+    @Published var historyCompressionEnabled: Bool {
+        didSet {
+            UserDefaults.standard.set(historyCompressionEnabled, forKey: "HistoryCompressionEnabled")
+        }
+    }
+
+    @Published var compressionThreshold: Int {
+        didSet {
+            UserDefaults.standard.set(compressionThreshold, forKey: "CompressionThreshold")
+        }
+    }
+
+    @Published var recentMessagesToKeep: Int {
+        didSet {
+            UserDefaults.standard.set(recentMessagesToKeep, forKey: "RecentMessagesToKeep")
+        }
+    }
+
     init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ClaudeAPIKey") ?? ""
         self.huggingFaceApiKey = UserDefaults.standard.string(forKey: "HuggingFaceAPIKey") ?? ""
@@ -133,6 +153,11 @@ class Settings: ObservableObject {
         self.enableYandexTrackerTools = UserDefaults.standard.object(forKey: "EnableYandexTrackerTools") as? Bool ?? false
         self.enablePeriodicTaskTools = UserDefaults.standard.object(forKey: "EnablePeriodicTaskTools") as? Bool ?? false
         self.enableSimulatorTools = UserDefaults.standard.object(forKey: "EnableSimulatorTools") as? Bool ?? true
+
+        // History Compression Settings
+        self.historyCompressionEnabled = UserDefaults.standard.object(forKey: "HistoryCompressionEnabled") as? Bool ?? false
+        self.compressionThreshold = UserDefaults.standard.object(forKey: "CompressionThreshold") as? Int ?? 10
+        self.recentMessagesToKeep = UserDefaults.standard.object(forKey: "RecentMessagesToKeep") as? Int ?? 5
     }
 
     var isConfigured: Bool {
