@@ -27,6 +27,7 @@ struct Message: Identifiable, Codable {
     var modelName: String?
     var isSystemMessage: Bool = false
 
+    // Convenience initializer for new messages
     init(content: String, isFromUser: Bool, temperature: Double? = nil, metrics: (responseTime: TimeInterval, inputTokens: Int?, outputTokens: Int?, cost: Double?, modelName: String?)? = nil, isSystemMessage: Bool = false) {
         self.id = UUID()
         self.content = content
@@ -47,6 +48,35 @@ struct Message: Identifiable, Codable {
         if !isFromUser {
             self.parsedContent = Self.parseJSON(from: content)
         }
+    }
+
+    // Full initializer for database restoration
+    init(
+        id: UUID,
+        content: String,
+        isFromUser: Bool,
+        timestamp: Date,
+        parsedContent: MessageContent? = nil,
+        temperature: Double? = nil,
+        responseTime: TimeInterval? = nil,
+        inputTokens: Int? = nil,
+        outputTokens: Int? = nil,
+        cost: Double? = nil,
+        modelName: String? = nil,
+        isSystemMessage: Bool = false
+    ) {
+        self.id = id
+        self.content = content
+        self.isFromUser = isFromUser
+        self.timestamp = timestamp
+        self.parsedContent = parsedContent
+        self.temperature = temperature
+        self.responseTime = responseTime
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.cost = cost
+        self.modelName = modelName
+        self.isSystemMessage = isSystemMessage
     }
 
     private static func parseJSON(from text: String) -> MessageContent? {

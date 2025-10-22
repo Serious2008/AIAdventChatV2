@@ -12,6 +12,7 @@ struct ChatView: View {
     @ObservedObject var settings: Settings
     @State private var showingSettings = false
     @State private var showingGeneratedDocument = false
+    @State private var showingConversationList = false
 
     private var canSendMessage: Bool {
         // Проверяем базовые условия
@@ -29,11 +30,31 @@ struct ChatView: View {
         VStack(spacing: 0) {
             // Заголовок с кнопками
             HStack {
-                Text(viewModel.conversationMode == .collectingRequirements ? "Сбор требований для ТЗ" : "Claude Chat")
-                    .font(.largeTitle)
-                    .fontWeight(.bold)
+                // Conversation title and history button
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.conversationMode == .collectingRequirements ? "Сбор требований для ТЗ" : viewModel.conversationTitle)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+
+                    if viewModel.messages.count > 0 {
+                        Text("\(viewModel.messages.count) сообщений")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
 
                 Spacer()
+
+                // Conversation history button
+                Button(action: {
+                    showingConversationList = true
+                }) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.title2)
+                        .foregroundColor(.purple)
+                }
+                .buttonStyle(.plain)
+                .help("История разговоров")
 
                 // Кнопка режима сбора ТЗ
                 if viewModel.conversationMode == .normal {
@@ -270,6 +291,9 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingGeneratedDocument) {
             GeneratedDocumentView(document: viewModel.generatedDocument ?? "")
+        }
+        .sheet(isPresented: $showingConversationList) {
+            ConversationListView(viewModel: viewModel)
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

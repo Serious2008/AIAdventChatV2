@@ -28,6 +28,13 @@ class ChatViewModel: ObservableObject {
     @Published var compressionStats: CompressionStats = CompressionStats()
     @Published var isCompressing: Bool = false
 
+    // Long-term Memory Persistence
+    @Published var currentConversationId: String = UUID().uuidString
+    @Published var conversationTitle: String = "Новый разговор"
+    private var isAutoSavingEnabled: Bool = true
+    private let dbManager = DatabaseManager.shared
+    private let jsonManager = JSONMemoryManager.shared
+
     internal let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
@@ -43,6 +50,23 @@ class ChatViewModel: ObservableObject {
     init(settings: Settings) {
         self.settings = settings
         periodicTaskService.chatViewModel = self
+
+        print("🚀 ChatViewModel initialized")
+
+        // Try to load last conversation first
+        let conversations = dbManager.getAllConversations()
+        print("📊 Found \(conversations.count) existing conversations")
+
+        if let lastConv = conversations.first {
+            print("📥 Loading last conversation: \(lastConv.title)")
+            currentConversationId = lastConv.id
+            conversationTitle = lastConv.title
+            loadLastConversation()
+        } else {
+            print("📝 Creating new conversation")
+            // Initialize database and create conversation
+            _ = dbManager.createConversation(id: currentConversationId, title: conversationTitle)
+        }
     }
 
     func startRequirementsCollection() {
@@ -71,6 +95,12 @@ class ChatViewModel: ObservableObject {
 
         let userMessage = Message(content: currentMessage, isFromUser: true)
         messages.append(userMessage)
+
+        // Auto-save user message
+        autoSaveMessage(userMessage)
+
+        // Auto-update conversation title if this is the first user message
+        autoUpdateConversationTitle()
 
         let messageToSend = currentMessage
         currentMessage = ""
@@ -716,6 +746,9 @@ class ChatViewModel: ObservableObject {
                                 )
                                 messages.append(claudeMessage)
 
+                                // Auto-save message
+                                autoSaveMessage(claudeMessage)
+
                                 // Check if compression is needed
                                 compressHistoryIfNeeded()
                             }
@@ -1105,6 +1138,9 @@ class ChatViewModel: ObservableObject {
                     )
                     messages.append(claudeMessage)
 
+                    // Auto-save message
+                    autoSaveMessage(claudeMessage)
+
                     // Check if compression is needed
                     compressHistoryIfNeeded()
                 } else {
@@ -1131,6 +1167,9 @@ class ChatViewModel: ObservableObject {
                                 )
                             )
                             messages.append(claudeMessage)
+
+                            // Auto-save message
+                            autoSaveMessage(claudeMessage)
 
                             // Check if compression is needed
                             compressHistoryIfNeeded()
@@ -1217,6 +1256,9 @@ class ChatViewModel: ObservableObject {
 
                 print("✅ История сжата. Сообщений: \(contentMessages.count) → \(recentMessages.count)")
                 print("📊 Сэкономлено токенов: \(compressionStats.totalTokensSaved)")
+
+                // Auto-save compression data
+                autoSaveCompressionData()
             }
         } catch {
             await MainActor.run {
@@ -1376,6 +1418,216 @@ class ChatViewModel: ObservableObject {
                 self.sendToClaudeDirectly(message: report)
             }
         }
+    }
+
+    // MARK: - Long-term Memory Persistence
+
+    /// Auto-save message to database
+    private func autoSaveMessage(_ message: Message) {
+        guard isAutoSavingEnabled else { return }
+
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+
+            let success = self.dbManager.saveMessage(message, conversationId: self.currentConversationId)
+
+            if success {
+                print("💾 Message auto-saved to database")
+            } else {
+                print("⚠️ Failed to auto-save message")
+            }
+        }
+    }
+
+    /// Auto-save compression data
+    private func autoSaveCompressionData() {
+        guard isAutoSavingEnabled else { return }
+
+        Task.detached { [weak self] in
+            guard let self = self else { return }
+
+            // Save summaries
+            for summary in self.compressedHistory.summaries {
+                _ = self.dbManager.saveSummary(summary, conversationId: self.currentConversationId)
+            }
+
+            // Save compression stats
+            _ = self.dbManager.saveCompressionStats(self.compressionStats, conversationId: self.currentConversationId)
+
+            print("💾 Compression data auto-saved")
+        }
+    }
+
+    /// Load last conversation from database
+    func loadLastConversation() {
+        let conversations = dbManager.getAllConversations()
+
+        guard let lastConversation = conversations.first else {
+            print("ℹ️ No previous conversations found")
+            return
+        }
+
+        print("📥 Loading last conversation: \(lastConversation.title)")
+
+        currentConversationId = lastConversation.id
+        conversationTitle = lastConversation.title
+
+        // Load messages
+        messages = dbManager.loadMessages(conversationId: currentConversationId)
+
+        // Load summaries
+        let summaries = dbManager.loadSummaries(conversationId: currentConversationId)
+        compressedHistory.summaries = summaries
+
+        // Load compression stats
+        if let stats = dbManager.loadCompressionStats(conversationId: currentConversationId) {
+            compressionStats = stats
+        }
+
+        print("✅ Loaded \(messages.count) messages, \(summaries.count) summaries")
+    }
+
+    /// Create new conversation
+    func createNewConversation(title: String? = nil) {
+        // Save current conversation state before switching
+        autoSaveCompressionData()
+
+        // Reset current state
+        currentConversationId = UUID().uuidString
+        conversationTitle = title ?? "Разговор от \(Date().formatted(date: .abbreviated, time: .shortened))"
+        messages.removeAll()
+        compressedHistory = CompressedConversationHistory()
+        compressionStats = CompressionStats()
+        errorMessage = nil
+        generatedDocument = nil
+
+        // Create in database
+        _ = dbManager.createConversation(id: currentConversationId, title: conversationTitle)
+
+        print("📝 New conversation created: \(conversationTitle)")
+    }
+
+    /// Load specific conversation
+    func loadConversation(id: String) {
+        // Save current state
+        autoSaveCompressionData()
+
+        currentConversationId = id
+
+        // Load from database
+        messages = dbManager.loadMessages(conversationId: id)
+        let summaries = dbManager.loadSummaries(conversationId: id)
+        compressedHistory.summaries = summaries
+
+        if let stats = dbManager.loadCompressionStats(conversationId: id) {
+            compressionStats = stats
+        } else {
+            compressionStats = CompressionStats()
+        }
+
+        // Get conversation title
+        let conversations = dbManager.getAllConversations()
+        if let conversation = conversations.first(where: { $0.id == id }) {
+            conversationTitle = conversation.title
+        }
+
+        print("✅ Loaded conversation: \(conversationTitle)")
+    }
+
+    /// Auto-update conversation title based on first user message
+    private func autoUpdateConversationTitle() {
+        // Only update if it's a default title
+        let isDefaultTitle = conversationTitle.hasPrefix("Разговор от") || conversationTitle == "Новый разговор"
+
+        guard isDefaultTitle,
+              let firstUserMessage = messages.first(where: { $0.isFromUser }) else {
+            return
+        }
+
+        // Create a smart title from first message (first 50 chars)
+        let content = firstUserMessage.content
+        let maxLength = 50
+        let newTitle = if content.count > maxLength {
+            String(content.prefix(maxLength)) + "..."
+        } else {
+            content
+        }
+
+        conversationTitle = newTitle
+        _ = dbManager.updateConversationTitle(id: currentConversationId, title: newTitle)
+    }
+
+    /// Export current conversation to JSON
+    func exportCurrentConversation() -> URL? {
+        let createdAt = messages.first?.timestamp ?? Date()
+        let updatedAt = messages.last?.timestamp ?? Date()
+
+        return jsonManager.exportConversation(
+            id: currentConversationId,
+            title: conversationTitle,
+            messages: messages,
+            summaries: compressedHistory.summaries,
+            compressionStats: compressionStats,
+            createdAt: createdAt,
+            updatedAt: updatedAt
+        )
+    }
+
+    /// Create full backup of all conversations
+    func createFullBackup() -> URL? {
+        // Ensure current conversation is saved
+        autoSaveCompressionData()
+
+        return jsonManager.createFullBackup()
+    }
+
+    /// Import conversation from JSON file
+    func importConversation(from url: URL) -> Bool {
+        guard let imported = jsonManager.importConversation(from: url) else {
+            return false
+        }
+
+        // Save current state first
+        autoSaveCompressionData()
+
+        // Import as new conversation
+        currentConversationId = imported.id
+        conversationTitle = imported.title
+        messages = imported.messages
+        compressedHistory.summaries = imported.summaries
+        compressionStats = imported.compressionStats ?? CompressionStats()
+
+        // Save to database
+        _ = dbManager.createConversation(id: currentConversationId, title: conversationTitle)
+
+        for message in messages {
+            _ = dbManager.saveMessage(message, conversationId: currentConversationId)
+        }
+
+        for summary in compressedHistory.summaries {
+            _ = dbManager.saveSummary(summary, conversationId: currentConversationId)
+        }
+
+        if let stats = imported.compressionStats {
+            _ = dbManager.saveCompressionStats(stats, conversationId: currentConversationId)
+        }
+
+        print("✅ Conversation imported: \(conversationTitle)")
+        return true
+    }
+
+    /// Get all saved conversations
+    func getAllSavedConversations() -> [(id: String, title: String, updatedAt: Date, messageCount: Int)] {
+        return dbManager.getAllConversations()
+    }
+
+    /// Delete conversation
+    func deleteConversation(id: String) -> Bool {
+        if id == currentConversationId {
+            createNewConversation()
+        }
+
+        return dbManager.deleteConversation(id: id)
     }
 }
 
