@@ -245,6 +245,20 @@ struct ChatView: View {
 
             // Поле ввода и кнопка отправки
             HStack(spacing: 12) {
+                // Pipeline button
+                Button(action: {
+                    if !viewModel.currentMessage.isEmpty {
+                        viewModel.processTextThroughPipeline(viewModel.currentMessage)
+                    }
+                }) {
+                    Image(systemName: viewModel.isProcessingText ? "hourglass" : "wand.and.stars")
+                        .font(.title2)
+                        .foregroundColor(.purple)
+                }
+                .buttonStyle(.plain)
+                .disabled(viewModel.currentMessage.isEmpty || viewModel.isProcessingText)
+                .help("Process text through pipeline")
+
                 TextField("Введите сообщение...", text: $viewModel.currentMessage, axis: .vertical)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .lineLimit(1...10)
@@ -294,6 +308,29 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingConversationList) {
             ConversationListView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $viewModel.showingPipelineResult) {
+            if let result = viewModel.pipelineResult {
+                VStack(spacing: 0) {
+                    TextPipelineView(result: result)
+
+                    Divider()
+
+                    HStack {
+                        Button("Use Compressed Text") {
+                            viewModel.useProcessedText()
+                        }
+                        .buttonStyle(.borderedProminent)
+
+                        Button("Close") {
+                            viewModel.showingPipelineResult = false
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor))
+                }
+            }
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {

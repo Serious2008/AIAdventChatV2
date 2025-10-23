@@ -267,15 +267,24 @@ class ClaudeService {
         if isFinalSummary {
             summarizationPrompt = """
             Create a final comprehensive summary by combining the following partial summaries.
-            Keep all important information and write in the same language as the original text.
-            Make the summary concise but informative:
+            Keep all important information and make the summary concise but informative.
+
+            IMPORTANT: You MUST write the summary in EXACTLY THE SAME LANGUAGE as the text below.
+            If the text is in English, write in English. If it's in Russian, write in Russian.
+            If it's code with English comments, keep it as code with English descriptions.
+            DO NOT translate or change the language.
 
             \(chunk)
             """
         } else {
             summarizationPrompt = """
             Summarize the following text concisely, keeping the main points and key information.
-            Keep it brief but informative. Write in the same language as the original text:
+            Keep it brief but informative.
+
+            IMPORTANT: You MUST write the summary in EXACTLY THE SAME LANGUAGE as the text below.
+            If the text is in English, write in English. If it's in Russian, write in Russian.
+            If it's code with English comments, keep it as code with English descriptions.
+            DO NOT translate or change the language.
 
             \(chunk)
             """

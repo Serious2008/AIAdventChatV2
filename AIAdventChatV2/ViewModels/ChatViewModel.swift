@@ -35,6 +35,11 @@ class ChatViewModel: ObservableObject {
     private let dbManager = DatabaseManager.shared
     private let jsonManager = JSONMemoryManager.shared
 
+    // Text Processing Pipeline
+    @Published var pipelineResult: PipelineResult?
+    @Published var showingPipelineResult: Bool = false
+    @Published var isProcessingText: Bool = false
+
     internal let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
@@ -45,6 +50,9 @@ class ChatViewModel: ObservableObject {
     private let simulatorService = SimulatorService()
     private lazy var compressionService: HistoryCompressionService = {
         HistoryCompressionService(claudeService: claudeService, settings: settings)
+    }()
+    private lazy var textPipeline: TextProcessingPipeline = {
+        TextProcessingPipeline(apiService: claudeService, settings: settings)
     }()
 
     init(settings: Settings) {
@@ -1628,6 +1636,38 @@ class ChatViewModel: ObservableObject {
         }
 
         return dbManager.deleteConversation(id: id)
+    }
+
+    // MARK: - Text Processing Pipeline
+
+    /// Process text through cleaning and compression pipeline
+    func processTextThroughPipeline(_ text: String) {
+        isProcessingText = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let result = try await textPipeline.process(text)
+
+                await MainActor.run {
+                    pipelineResult = result
+                    showingPipelineResult = true
+                    isProcessingText = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Pipeline error: \(error.localizedDescription)"
+                    isProcessingText = false
+                }
+            }
+        }
+    }
+
+    /// Use processed text in message
+    func useProcessedText() {
+        guard let result = pipelineResult else { return }
+        currentMessage = result.compressedText
+        showingPipelineResult = false
     }
 }
 
