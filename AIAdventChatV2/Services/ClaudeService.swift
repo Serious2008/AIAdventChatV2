@@ -470,3 +470,6 @@ class ClaudeService {
         }.resume()
     }
 }
+
+// Test: PR Analyzer Integration
+// This comment tests the GitHub PR Analyzer bot
