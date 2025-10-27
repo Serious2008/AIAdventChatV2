@@ -51,6 +51,14 @@ struct ContentView: View {
                 Label("Tracker", systemImage: "checklist")
             }
             .tag(3)
+
+            NavigationStack {
+                VectorSearchView(viewModel: chatViewModel, selectedTab: $selectedTab)
+            }
+            .tabItem {
+                Label("Search", systemImage: "doc.text.magnifyingglass")
+            }
+            .tag(4)
         }
     }
 }

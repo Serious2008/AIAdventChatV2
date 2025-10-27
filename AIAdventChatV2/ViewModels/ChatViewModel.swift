@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import AppKit
 
 enum ConversationMode {
     case normal
@@ -40,6 +41,14 @@ class ChatViewModel: ObservableObject {
     @Published var showingPipelineResult: Bool = false
     @Published var isProcessingText: Bool = false
 
+    // Vector Search
+    @Published var searchResults: [SearchResult] = []
+    @Published var isSearching: Bool = false
+    @Published var isIndexing: Bool = false
+    @Published var indexingProgress: String = ""
+    @Published var indexingStatistics: IndexingStatistics?
+    @Published var showingSearchResults: Bool = false
+
     internal let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
@@ -53,6 +62,11 @@ class ChatViewModel: ObservableObject {
     }()
     private lazy var textPipeline: TextProcessingPipeline = {
         TextProcessingPipeline(apiService: claudeService, settings: settings)
+    }()
+    private lazy var vectorSearchService: VectorSearchService = {
+        let service = VectorSearchService(apiKey: settings.apiKey)
+        try? service.initialize()
+        return service
     }()
 
     init(settings: Settings) {
@@ -1668,6 +1682,199 @@ class ChatViewModel: ObservableObject {
         guard let result = pipelineResult else { return }
         currentMessage = result.compressedText
         showingPipelineResult = false
+    }
+
+    // MARK: - Vector Search
+
+    /// Index project documentation
+    func indexProjectDocumentation(projectPath: String) {
+        isIndexing = true
+        indexingProgress = "Starting indexing..."
+        errorMessage = nil
+
+        Task {
+            do {
+                let stats = try await vectorSearchService.indexProjectDocumentation(
+                    projectPath: projectPath
+                ) { file, current, total in
+                    Task { @MainActor [weak self] in
+                        self?.indexingProgress = "Indexing \(current)/\(total): \(file)"
+                    }
+                }
+
+                await MainActor.run {
+                    indexingStatistics = stats
+                    indexingProgress = "✅ Indexed \(stats.totalChunks) chunks from \(stats.totalDocuments) files"
+                    isIndexing = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Indexing error: \(error.localizedDescription)"
+                    isIndexing = false
+                }
+            }
+        }
+    }
+
+    /// Index entire directory with all supported files
+    func indexDirectory(directoryPath: String, fileExtensions: [String] = ["swift", "md", "txt"]) {
+        isIndexing = true
+        indexingProgress = "Scanning directory..."
+        errorMessage = nil
+
+        Task {
+            do {
+                let stats = try await vectorSearchService.indexDirectory(
+                    at: directoryPath,
+                    fileExtensions: fileExtensions
+                ) { file, current, total in
+                    Task { @MainActor [weak self] in
+                        self?.indexingProgress = "Indexing \(current)/\(total): \(file)"
+                    }
+                }
+
+                await MainActor.run {
+                    indexingStatistics = stats
+                    indexingProgress = "✅ Indexed \(stats.totalChunks) chunks from \(stats.totalDocuments) files"
+                    isIndexing = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Indexing error: \(error.localizedDescription)"
+                    isIndexing = false
+                }
+            }
+        }
+    }
+
+    /// Index specific files
+    func indexFiles(_ filePaths: [String]) {
+        isIndexing = true
+        indexingProgress = "Starting indexing..."
+        errorMessage = nil
+
+        Task {
+            do {
+                let stats = try await vectorSearchService.indexDocuments(
+                    at: filePaths
+                ) { file, current, total in
+                    Task { @MainActor [weak self] in
+                        self?.indexingProgress = "Indexing \(current)/\(total): \(file)"
+                    }
+                }
+
+                await MainActor.run {
+                    indexingStatistics = stats
+                    indexingProgress = "✅ Indexed \(stats.totalChunks) chunks from \(stats.totalDocuments) files"
+                    isIndexing = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Indexing error: \(error.localizedDescription)"
+                    isIndexing = false
+                }
+            }
+        }
+    }
+
+    /// Search in indexed documents
+    func searchDocuments(query: String, topK: Int = 5) {
+        guard !query.isEmpty else { return }
+
+        isSearching = true
+        errorMessage = nil
+
+        Task {
+            do {
+                let results = try await vectorSearchService.search(query: query, topK: topK)
+
+                await MainActor.run {
+                    searchResults = results
+                    showingSearchResults = true
+                    isSearching = false
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Search error: \(error.localizedDescription)"
+                    isSearching = false
+                }
+            }
+        }
+    }
+
+    /// Ask Claude about search result
+    func askAboutSearchResult(_ result: SearchResult) {
+        let cleanedContent = result.chunk.content
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        let prompt = """
+        Объясни этот код из файла \(result.chunk.fileName):
+
+        ```
+        \(cleanedContent)
+        ```
+
+        Что он делает и как используется?
+        """
+
+        currentMessage = prompt
+        showingSearchResults = false
+    }
+
+    /// Copy search result to clipboard
+    func copySearchResult(_ result: SearchResult) {
+        let cleanedContent = result.chunk.content
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(cleanedContent, forType: .string)
+    }
+
+    /// Use search result in message (insert raw text)
+    func useSearchResult(_ result: SearchResult) {
+        let cleanedContent = result.chunk.content
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        // Limit to reasonable length
+        let maxLength = 500
+        let displayContent = cleanedContent.count > maxLength
+            ? String(cleanedContent.prefix(maxLength)) + "..."
+            : cleanedContent
+
+        let context = """
+        Found in: \(result.chunk.fileName)
+        Relevance: \(String(format: "%.1f%%", result.similarity * 100))
+
+        \(displayContent)
+        """
+
+        currentMessage = context
+        showingSearchResults = false
+    }
+
+    /// Clear vector search index
+    func clearSearchIndex() {
+        Task {
+            do {
+                try vectorSearchService.clearIndex()
+                await MainActor.run {
+                    searchResults = []
+                    indexingStatistics = nil
+                    indexingProgress = "Index cleared"
+                }
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Failed to clear index: \(error.localizedDescription)"
+                }
+            }
+        }
     }
 }
 
