@@ -27,9 +27,9 @@ class TextChunker {
         )
 
         static let code = ChunkingConfig(
-            chunkSize: 1500,
-            overlapSize: 300,
-            respectParagraphs: false,
+            chunkSize: 3000,  // Larger chunks for code to keep functions together
+            overlapSize: 500,
+            respectParagraphs: true,  // Respect blank lines in code
             respectSentences: false
         )
 

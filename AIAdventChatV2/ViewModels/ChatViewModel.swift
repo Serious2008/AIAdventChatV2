@@ -1812,9 +1812,7 @@ class ChatViewModel: ObservableObject {
         let prompt = """
         Объясни этот код из файла \(result.chunk.fileName):
 
-        ```
         \(cleanedContent)
-        ```
 
         Что он делает и как используется?
         """

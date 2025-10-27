@@ -16,6 +16,26 @@ struct VectorSearchView: View {
     @State private var includeSwift: Bool = true
     @State private var includeMarkdown: Bool = true
     @State private var includeText: Bool = true
+    @State private var filterFileType: String = "all" // all, swift, markdown, text
+
+    var filteredSearchResults: [SearchResult] {
+        guard filterFileType != "all" else {
+            return viewModel.searchResults
+        }
+
+        return viewModel.searchResults.filter { result in
+            switch filterFileType {
+            case "swift":
+                return result.chunk.metadata.fileType == .swift
+            case "markdown":
+                return result.chunk.metadata.fileType == .markdown
+            case "text":
+                return result.chunk.metadata.fileType == .text
+            default:
+                return true
+            }
+        }
+    }
 
     var body: some View {
         NavigationView {
@@ -149,6 +169,15 @@ struct VectorSearchView: View {
                             TextField("Search query...", text: $searchQuery)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
 
+                            Picker("Type", selection: $filterFileType) {
+                                Text("All").tag("all")
+                                Text("Swift").tag("swift")
+                                Text("Markdown").tag("markdown")
+                                Text("Text").tag("text")
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 100)
+
                             Button(action: {
                                 viewModel.searchDocuments(query: searchQuery)
                             }) {
@@ -168,10 +197,11 @@ struct VectorSearchView: View {
 
                 // Search Results
                 if !viewModel.searchResults.isEmpty {
-                    GroupBox(label: Label("Results (\(viewModel.searchResults.count))", systemImage: "list.bullet")) {
+                    let filteredResults = filteredSearchResults
+                    GroupBox(label: Label("Results (\(filteredResults.count)/\(viewModel.searchResults.count))", systemImage: "list.bullet")) {
                         ScrollView {
                             VStack(spacing: 12) {
-                                ForEach(viewModel.searchResults) { result in
+                                ForEach(filteredResults) { result in
                                     SearchResultCard(result: result, onAsk: {
                                         viewModel.askAboutSearchResult(result)
                                         selectedTab = 0 // Switch to Chat tab
@@ -275,6 +305,10 @@ struct SearchResultCard: View {
 
             // Metadata
             HStack(spacing: 12) {
+                Label("\(result.chunk.content.count) chars", systemImage: "text.alignleft")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
                 Label("\(result.chunk.metadata.tokenCount) tokens", systemImage: "doc.text")
                     .font(.caption)
                     .foregroundColor(.secondary)

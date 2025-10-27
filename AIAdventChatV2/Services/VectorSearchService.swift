@@ -60,8 +60,17 @@ class VectorSearchService {
 
         progressCallback?("Chunking text (\(extractedText.wordCount) words)...")
 
-        // Step 2: Chunk text
-        let chunks = textChunker.chunkDocument(extractedText)
+        // Step 2: Chunk text with appropriate config for file type
+        let chunkConfig: TextChunker.ChunkingConfig
+        switch extractedText.metadata.format {
+        case .swift, .json, .xml, .html:
+            chunkConfig = .code  // Larger chunks for code
+        default:
+            chunkConfig = .default
+        }
+
+        let chunker = TextChunker(config: chunkConfig)
+        let chunks = chunker.chunkDocument(extractedText)
 
         progressCallback?("Generating embeddings for \(chunks.count) chunks...")
 
@@ -109,9 +118,23 @@ class VectorSearchService {
 
         var filePaths: [String] = []
 
+        // Directories to skip
+        let skipDirectories: Set<String> = [".build", ".git", "build", "DerivedData", "Pods", "node_modules"]
+
         // Recursively find all matching files
-        if let enumerator = fileManager.enumerator(at: directoryURL, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) {
+        if let enumerator = fileManager.enumerator(at: directoryURL, includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey], options: [.skipsHiddenFiles]) {
             for case let fileURL as URL in enumerator {
+                // Check if it's a directory we should skip
+                if let resourceValues = try? fileURL.resourceValues(forKeys: [.isDirectoryKey]),
+                   resourceValues.isDirectory == true {
+                    let dirName = fileURL.lastPathComponent
+                    if skipDirectories.contains(dirName) {
+                        enumerator.skipDescendants()
+                        continue
+                    }
+                }
+
+                // Check file extension
                 if fileExtensions.contains(fileURL.pathExtension.lowercased()) {
                     filePaths.append(fileURL.path)
                 }

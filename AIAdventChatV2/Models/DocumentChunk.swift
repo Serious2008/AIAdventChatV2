@@ -74,9 +74,14 @@ struct SearchResult: Identifiable {
             .filter { !$0.isEmpty }
             .joined(separator: " ")
 
-        let maxLength = 200
+        let maxLength = 300  // Increased from 200
+
         if cleanedContent.count > maxLength {
-            return String(cleanedContent.prefix(maxLength)) + "..."
+            // Show beginning and end for better context
+            let halfLength = maxLength / 2
+            let beginning = String(cleanedContent.prefix(halfLength))
+            let ending = String(cleanedContent.suffix(halfLength))
+            return "\(beginning) ... \(ending)"
         }
         return cleanedContent
     }
