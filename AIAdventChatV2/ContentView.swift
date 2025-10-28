@@ -59,6 +59,14 @@ struct ContentView: View {
                 Label("Search", systemImage: "doc.text.magnifyingglass")
             }
             .tag(4)
+
+            NavigationStack {
+                RAGComparisonView(viewModel: chatViewModel)
+            }
+            .tabItem {
+                Label("RAG Compare", systemImage: "arrow.left.arrow.right.circle.fill")
+            }
+            .tag(5)
         }
     }
 }

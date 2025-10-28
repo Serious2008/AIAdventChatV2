@@ -1886,5 +1886,40 @@ class ChatViewModel: ObservableObject {
             }
         }
     }
+
+    // MARK: - RAG Comparison
+
+    /// Compare answers with RAG vs without RAG
+    func compareRAG(question: String, topK: Int = 5) async throws -> RAGComparisonResult {
+        print("🆚 Starting RAG comparison for: \(question)")
+
+        // Initialize RAG service
+        let ragService = RAGService(vectorSearchService: vectorSearchService)
+
+        // Run both queries in parallel
+        async let ragResponseTask = try ragService.answerWithRAG(question: question, topK: topK)
+        async let noRAGResponseTask = try ragService.answerWithoutRAG(question: question)
+
+        // Wait for both
+        let (ragResponse, noRAGResponse) = try await (ragResponseTask, noRAGResponseTask)
+
+        let result = RAGComparisonResult(
+            question: question,
+            withRAG: ragResponse.answer,
+            withoutRAG: noRAGResponse,
+            usedChunks: ragResponse.usedChunks,
+            ragProcessingTime: ragResponse.processingTime,
+            noRAGProcessingTime: 0 // Will be measured separately
+        )
+
+        print("✅ RAG comparison complete")
+        return result
+    }
+
+    /// Answer question using RAG only
+    func answerWithRAG(question: String, topK: Int = 5) async throws -> RAGResponse {
+        let ragService = RAGService(vectorSearchService: vectorSearchService)
+        return try await ragService.answerWithRAG(question: question, topK: topK)
+    }
 }
 
