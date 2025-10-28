@@ -81,9 +81,13 @@ class RAGService {
     }
 
     /// Answer question without RAG (baseline)
-    func answerWithoutRAG(question: String) async throws -> String {
+    func answerWithoutRAG(question: String) async throws -> (answer: String, processingTime: TimeInterval) {
+        let startTime = Date()
         print("💬 No RAG: Sending question directly to LLM...")
-        return try await sendToLLM(prompt: question)
+        let answer = try await sendToLLM(prompt: question)
+        let processingTime = Date().timeIntervalSince(startTime)
+        print("✅ No RAG: Complete in \(String(format: "%.2f", processingTime))s")
+        return (answer, processingTime)
     }
 
     // MARK: - Private Methods

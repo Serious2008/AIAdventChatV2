@@ -1906,10 +1906,10 @@ class ChatViewModel: ObservableObject {
         let result = RAGComparisonResult(
             question: question,
             withRAG: ragResponse.answer,
-            withoutRAG: noRAGResponse,
+            withoutRAG: noRAGResponse.answer,
             usedChunks: ragResponse.usedChunks,
             ragProcessingTime: ragResponse.processingTime,
-            noRAGProcessingTime: 0 // Will be measured separately
+            noRAGProcessingTime: noRAGResponse.processingTime
         )
 
         print("✅ RAG comparison complete")
