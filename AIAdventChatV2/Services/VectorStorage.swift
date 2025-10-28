@@ -346,26 +346,24 @@ class VectorStorage {
     }
 
     private func serializeEmbedding(_ embedding: [Double]) throws -> Data {
-        var data = Data()
+        var data = Data(capacity: embedding.count * MemoryLayout<Double>.size)
         for value in embedding {
-            var val = value
-            data.append(Data(bytes: &val, count: MemoryLayout<Double>.size))
+            withUnsafeBytes(of: value) { bytes in
+                data.append(contentsOf: bytes)
+            }
         }
         return data
     }
 
     private func deserializeEmbedding(_ data: Data) throws -> [Double] {
         let count = data.count / MemoryLayout<Double>.size
-        var embedding: [Double] = []
-
-        for i in 0..<count {
-            let start = i * MemoryLayout<Double>.size
-            let end = start + MemoryLayout<Double>.size
-            let slice = data[start..<end]
-            let value = slice.withUnsafeBytes { $0.load(as: Double.self) }
-            embedding.append(value)
+        guard count * MemoryLayout<Double>.size == data.count else {
+            throw StorageError.invalidData
         }
 
-        return embedding
+        return data.withUnsafeBytes { buffer in
+            let pointer = buffer.bindMemory(to: Double.self)
+            return Array(pointer)
+        }
     }
 }

@@ -63,11 +63,16 @@ class ChatViewModel: ObservableObject {
     private lazy var textPipeline: TextProcessingPipeline = {
         TextProcessingPipeline(apiService: claudeService, settings: settings)
     }()
-    private lazy var vectorSearchService: VectorSearchService = {
-        let service = VectorSearchService(apiKey: settings.openAIApiKey)
-        try? service.initialize()
-        return service
-    }()
+    private var _vectorSearchService: VectorSearchService?
+    private var vectorSearchService: VectorSearchService {
+        // Пересоздаём сервис если ключ изменился
+        if _vectorSearchService == nil {
+            let service = VectorSearchService(apiKey: settings.openAIApiKey)
+            try? service.initialize()
+            _vectorSearchService = service
+        }
+        return _vectorSearchService!
+    }
 
     init(settings: Settings) {
         self.settings = settings
@@ -1685,6 +1690,13 @@ class ChatViewModel: ObservableObject {
     }
 
     // MARK: - Vector Search
+
+    /// Reset vector search service (call when OpenAI API key changes)
+    func resetVectorSearchService() {
+        _vectorSearchService?.shutdown()
+        _vectorSearchService = nil
+        print("🔄 Vector search service reset")
+    }
 
     /// Index project documentation
     func indexProjectDocumentation(projectPath: String) {
