@@ -31,6 +31,12 @@ class Settings: ObservableObject {
         }
     }
 
+    @Published var openAIApiKey: String {
+        didSet {
+            UserDefaults.standard.set(openAIApiKey, forKey: "OpenAIAPIKey")
+        }
+    }
+
     @Published var temperature: Double {
         didSet {
             UserDefaults.standard.set(temperature, forKey: "ClaudeTemperature")
@@ -124,6 +130,7 @@ class Settings: ObservableObject {
     init() {
         self.apiKey = UserDefaults.standard.string(forKey: "ClaudeAPIKey") ?? ""
         self.huggingFaceApiKey = UserDefaults.standard.string(forKey: "HuggingFaceAPIKey") ?? ""
+        self.openAIApiKey = UserDefaults.standard.string(forKey: "OpenAIAPIKey") ?? ""
         self.temperature = UserDefaults.standard.object(forKey: "ClaudeTemperature") as? Double ?? 0.7
 
         if let providerString = UserDefaults.standard.string(forKey: "SelectedProvider"),

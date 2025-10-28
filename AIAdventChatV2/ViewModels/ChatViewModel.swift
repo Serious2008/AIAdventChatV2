@@ -64,7 +64,7 @@ class ChatViewModel: ObservableObject {
         TextProcessingPipeline(apiService: claudeService, settings: settings)
     }()
     private lazy var vectorSearchService: VectorSearchService = {
-        let service = VectorSearchService(apiKey: settings.apiKey)
+        let service = VectorSearchService(apiKey: settings.openAIApiKey)
         try? service.initialize()
         return service
     }()

@@ -2,7 +2,7 @@
 //  EmbeddingService.swift
 //  AIAdventChatV2
 //
-//  Service for generating text embeddings using Claude API
+//  Service for generating text embeddings using OpenAI API
 //
 
 import Foundation
@@ -17,20 +17,26 @@ class EmbeddingService {
         case apiError(String)
         case invalidResponse
         case emptyText
+        case rateLimitExceeded
     }
 
     private let apiKey: String
-    private let embeddingDimension: Int = 384 // Simulated embedding dimension
+    private let model: String
+    private let embeddingDimension: Int
 
     // MARK: - Init
 
-    init(apiKey: String) {
+    init(apiKey: String, model: String = "text-embedding-3-small") {
         self.apiKey = apiKey
+        self.model = model
+        // text-embedding-3-small: 1536 dimensions
+        // text-embedding-3-large: 3072 dimensions
+        self.embeddingDimension = model == "text-embedding-3-small" ? 1536 : 3072
     }
 
     // MARK: - Public Methods
 
-    /// Generate embedding for a single text chunk
+    /// Generate embedding for a single text chunk using OpenAI API
     func generateEmbedding(for text: String) async throws -> [Double] {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw EmbeddingError.emptyText
@@ -40,33 +46,45 @@ class EmbeddingService {
             throw EmbeddingError.invalidAPIKey
         }
 
-        // For now, we'll generate a hash-based deterministic embedding
-        // In production, you would use a real embedding API or model
-        return generateDeterministicEmbedding(for: text)
+        return try await callOpenAIEmbeddingAPI(for: text)
     }
 
     /// Generate embeddings for multiple chunks (batch processing)
+    /// OpenAI supports up to 2048 inputs per request
     func generateEmbeddings(for chunks: [DocumentChunk]) async throws -> [DocumentChunk] {
         var updatedChunks: [DocumentChunk] = []
+        let batchSize = 100 // Process 100 chunks at a time to avoid rate limits
 
-        for chunk in chunks {
-            let embedding = try await generateEmbedding(for: chunk.content)
+        for batchStart in stride(from: 0, to: chunks.count, by: batchSize) {
+            let batchEnd = min(batchStart + batchSize, chunks.count)
+            let batch = Array(chunks[batchStart..<batchEnd])
 
-            let updatedChunk = DocumentChunk(
-                id: chunk.id,
-                filePath: chunk.filePath,
-                fileName: chunk.fileName,
-                content: chunk.content,
-                chunkIndex: chunk.chunkIndex,
-                embedding: embedding,
-                metadata: chunk.metadata,
-                createdAt: chunk.createdAt
-            )
+            // Extract texts for batch
+            let texts = batch.map { $0.content }
 
-            updatedChunks.append(updatedChunk)
+            // Get embeddings for batch
+            let embeddings = try await callOpenAIEmbeddingAPI(for: texts)
 
-            // Add small delay to avoid rate limiting
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
+            // Create updated chunks
+            for (index, chunk) in batch.enumerated() {
+                let updatedChunk = DocumentChunk(
+                    id: chunk.id,
+                    filePath: chunk.filePath,
+                    fileName: chunk.fileName,
+                    content: chunk.content,
+                    chunkIndex: chunk.chunkIndex,
+                    embedding: embeddings[index],
+                    metadata: chunk.metadata,
+                    createdAt: chunk.createdAt
+                )
+
+                updatedChunks.append(updatedChunk)
+            }
+
+            // Small delay between batches to avoid rate limiting
+            if batchEnd < chunks.count {
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
+            }
         }
 
         return updatedChunks
@@ -79,82 +97,23 @@ class EmbeddingService {
 
     // MARK: - Private Methods
 
-    /// Generate deterministic embedding based on text content
-    /// This is a simplified approach - in production use proper embedding models
-    private func generateDeterministicEmbedding(for text: String) -> [Double] {
-        // Create a deterministic but meaningful embedding
-        // This simulates real embeddings by using text features
-
-        var embedding = [Double](repeating: 0.0, count: embeddingDimension)
-
-        // Feature 1: Character frequency distribution
-        let chars = Array(text.lowercased())
-        for (index, char) in chars.prefix(embeddingDimension / 4).enumerated() {
-            embedding[index] = Double(char.asciiValue ?? 0) / 255.0
-        }
-
-        // Feature 2: Word length distribution
-        let words = text.components(separatedBy: .whitespacesAndNewlines)
-            .filter { !$0.isEmpty }
-
-        for (index, word) in words.prefix(embeddingDimension / 4).enumerated() {
-            let offset = embeddingDimension / 4
-            embedding[offset + index] = Double(word.count) / 20.0
-        }
-
-        // Feature 3: Hash-based features for uniqueness
-        let hashValue = text.hashValue
-        for i in 0..<(embeddingDimension / 4) {
-            let offset = embeddingDimension / 2
-            let value = Double((hashValue >> (i % 32)) & 0xFF) / 255.0
-            embedding[offset + i] = value
-        }
-
-        // Feature 4: Statistical features
-        let wordCount = Double(words.count)
-        let avgWordLength = words.isEmpty ? 0.0 : Double(text.count) / wordCount
-        let uniqueChars = Double(Set(chars).count)
-
-        for i in 0..<(embeddingDimension / 4) {
-            let offset = 3 * embeddingDimension / 4
-            switch i % 3 {
-            case 0:
-                embedding[offset + i] = min(wordCount / 100.0, 1.0)
-            case 1:
-                embedding[offset + i] = min(avgWordLength / 10.0, 1.0)
-            case 2:
-                embedding[offset + i] = min(uniqueChars / 50.0, 1.0)
-            default:
-                break
-            }
-        }
-
-        // Normalize the embedding vector
-        return normalizeVector(embedding)
+    /// Call OpenAI API for single embedding
+    private func callOpenAIEmbeddingAPI(for text: String) async throws -> [Double] {
+        let embeddings = try await callOpenAIEmbeddingAPI(for: [text])
+        return embeddings[0]
     }
 
-    /// Normalize vector to unit length
-    private func normalizeVector(_ vector: [Double]) -> [Double] {
-        let magnitude = sqrt(vector.reduce(0) { $0 + $1 * $1 })
-        guard magnitude > 0 else { return vector }
-        return vector.map { $0 / magnitude }
-    }
-
-    // MARK: - Real Claude API Integration (Future Enhancement)
-
-    /*
-    /// Call Claude API for real embeddings (placeholder for future implementation)
-    private func callClaudeEmbeddingAPI(for text: String) async throws -> [Double] {
-        let url = URL(string: "https://api.anthropic.com/v1/embeddings")!
+    /// Call OpenAI API for batch embeddings
+    private func callOpenAIEmbeddingAPI(for texts: [String]) async throws -> [[Double]] {
+        let url = URL(string: "https://api.openai.com/v1/embeddings")!
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
 
         let body: [String: Any] = [
-            "text": text,
-            "model": "claude-embedding-v1" // Hypothetical model name
+            "input": texts.count == 1 ? texts[0] : texts,
+            "model": model
         ]
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
@@ -165,18 +124,31 @@ class EmbeddingService {
             throw EmbeddingError.networkError("Invalid response")
         }
 
+        // Handle rate limiting
+        if httpResponse.statusCode == 429 {
+            throw EmbeddingError.rateLimitExceeded
+        }
+
         guard httpResponse.statusCode == 200 else {
-            throw EmbeddingError.apiError("HTTP \(httpResponse.statusCode)")
+            let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw EmbeddingError.apiError("HTTP \(httpResponse.statusCode): \(errorMessage)")
         }
 
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let embedding = json["embedding"] as? [Double] else {
+              let dataArray = json["data"] as? [[String: Any]] else {
             throw EmbeddingError.invalidResponse
         }
 
-        return embedding
+        var embeddings: [[Double]] = []
+        for item in dataArray {
+            guard let embedding = item["embedding"] as? [Double] else {
+                throw EmbeddingError.invalidResponse
+            }
+            embeddings.append(embedding)
+        }
+
+        return embeddings
     }
-    */
 }
 
 // MARK: - Similarity Calculation

@@ -395,6 +395,55 @@ struct SettingsView: View {
                         .padding()
                         .background(Color(NSColor.controlBackgroundColor))
                         .cornerRadius(12)
+
+                        // OpenAI API Key
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("OpenAI API Key")
+                                .font(.headline)
+                                .fontWeight(.semibold)
+
+                            HStack {
+                                Group {
+                                    if showAPIKey {
+                                        TextField("sk-proj-...", text: $settings.openAIApiKey)
+                                    } else {
+                                        SecureField("sk-proj-...", text: $settings.openAIApiKey)
+                                    }
+                                }
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                                .font(.system(.body, design: .monospaced))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color(NSColor.textBackgroundColor))
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
+                                )
+
+                                Button(action: {
+                                    showAPIKey.toggle()
+                                }) {
+                                    Image(systemName: showAPIKey ? "eye.slash" : "eye")
+                                        .foregroundColor(.blue)
+                                        .frame(width: 24, height: 24)
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "info.circle")
+                                        .foregroundColor(.blue)
+                                    Text("Для векторного поиска. Получите ключ на https://platform.openai.com/api-keys")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(12)
                     }
 
                     // MARK: - Yandex Tracker Settings
