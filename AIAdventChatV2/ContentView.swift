@@ -67,6 +67,14 @@ struct ContentView: View {
                 Label("RAG Compare", systemImage: "arrow.left.arrow.right.circle.fill")
             }
             .tag(5)
+
+            NavigationStack {
+                RerankingComparisonView(viewModel: chatViewModel)
+            }
+            .tabItem {
+                Label("Reranking", systemImage: "slider.horizontal.3")
+            }
+            .tag(6)
         }
     }
 }

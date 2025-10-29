@@ -40,22 +40,31 @@ class RAGService {
     func answerWithRAG(
         question: String,
         topK: Int = 5,
-        minSimilarity: Double = 0.3
+        minSimilarity: Double = 0.3,
+        rerankingStrategy: RerankingStrategy = .threshold(0.5)
     ) async throws -> RAGResponse {
         let startTime = Date()
 
-        // Step 1: Search for relevant chunks
+        // Step 1: Search for relevant chunks (get more candidates for reranking)
         print("🔍 RAG: Searching for relevant chunks...")
-        let searchResults = try await vectorSearchService.search(query: question, topK: topK)
+        let candidateCount = rerankingStrategy == .llmBased ? 15 : topK
+        let searchResults = try await vectorSearchService.search(query: question, topK: candidateCount)
 
-        // Filter by minimum similarity
-        let relevantChunks = searchResults.filter { $0.similarity >= minSimilarity }
+        // Step 2: Rerank results
+        print("🎯 RAG: Applying reranking strategy: \(rerankingStrategy)")
+        let reranker = RerankerService()
+        let relevantChunks = try await reranker.rerank(
+            results: searchResults,
+            question: question,
+            strategy: rerankingStrategy,
+            topK: topK
+        )
 
         guard !relevantChunks.isEmpty else {
             throw RAGError.noRelevantContext
         }
 
-        print("📚 RAG: Found \(relevantChunks.count) relevant chunks")
+        print("📚 RAG: Selected \(relevantChunks.count) chunks after reranking")
 
         // Step 2: Build context from chunks
         let context = buildContext(from: relevantChunks)

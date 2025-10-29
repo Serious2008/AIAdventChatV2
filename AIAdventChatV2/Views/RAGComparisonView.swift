@@ -359,6 +359,82 @@ struct RAGComparisonResult {
     }
 }
 
+// MARK: - Reranking Comparison Result
+
+struct RerankingComparisonResult {
+    let question: String
+    let originalResults: [SearchResult]
+    let noFilterResults: RAGResponse
+    let thresholdResults: RAGResponse
+    let adaptiveResults: RAGResponse
+    let llmResults: RAGResponse
+
+    var summary: String {
+        """
+        📊 СРАВНЕНИЕ RERANKING СТРАТЕГИЙ
+
+        Вопрос: \(question)
+        Исходных кандидатов: \(originalResults.count)
+
+        1️⃣ Без фильтра: \(noFilterResults.usedChunks.count) результатов
+           Мин. similarity: \(String(format: "%.1f%%", (noFilterResults.usedChunks.last?.similarity ?? 0) * 100))
+           Время: \(String(format: "%.2f", noFilterResults.processingTime))s
+
+        2️⃣ Threshold (50%): \(thresholdResults.usedChunks.count) результатов
+           Мин. similarity: \(String(format: "%.1f%%", (thresholdResults.usedChunks.last?.similarity ?? 0) * 100))
+           Время: \(String(format: "%.2f", thresholdResults.processingTime))s
+
+        3️⃣ Adaptive: \(adaptiveResults.usedChunks.count) результатов
+           Мин. similarity: \(String(format: "%.1f%%", (adaptiveResults.usedChunks.last?.similarity ?? 0) * 100))
+           Время: \(String(format: "%.2f", adaptiveResults.processingTime))s
+
+        4️⃣ LLM-based: \(llmResults.usedChunks.count) результатов
+           Мин. similarity: \(String(format: "%.1f%%", (llmResults.usedChunks.last?.similarity ?? 0) * 100))
+           Время: \(String(format: "%.2f", llmResults.processingTime))s
+        """
+    }
+
+    // Helper: Get files that were filtered out by a strategy
+    func filteredOut(baseline: [SearchResult], filtered: [SearchResult]) -> [SearchResult] {
+        let filteredIDs = Set(filtered.map { $0.chunk.id })
+        return baseline.filter { !filteredIDs.contains($0.chunk.id) }
+    }
+
+    // Detailed comparison showing what each strategy filtered
+    var detailedComparison: String {
+        let baseFiles = Set(noFilterResults.usedChunks.map { $0.chunk.fileName })
+        let thresholdFiles = Set(thresholdResults.usedChunks.map { $0.chunk.fileName })
+        let adaptiveFiles = Set(adaptiveResults.usedChunks.map { $0.chunk.fileName })
+        let llmFiles = Set(llmResults.usedChunks.map { $0.chunk.fileName })
+
+        let thresholdFiltered = baseFiles.subtracting(thresholdFiles)
+        let adaptiveFiltered = baseFiles.subtracting(adaptiveFiles)
+        let llmFiltered = baseFiles.subtracting(llmFiles)
+
+        var result = "🎯 ЧТО ОТФИЛЬТРОВАЛА КАЖДАЯ СТРАТЕГИЯ:\n\n"
+
+        if thresholdFiltered.isEmpty {
+            result += "Threshold: Ничего не отфильтровал\n"
+        } else {
+            result += "Threshold отфильтровал: \(thresholdFiltered.joined(separator: ", "))\n"
+        }
+
+        if adaptiveFiltered.isEmpty {
+            result += "Adaptive: Ничего не отфильтровал\n"
+        } else {
+            result += "Adaptive отфильтровал: \(adaptiveFiltered.joined(separator: ", "))\n"
+        }
+
+        if llmFiltered.isEmpty {
+            result += "LLM-based: Ничего не отфильтровал\n"
+        } else {
+            result += "LLM-based отфильтровал: \(llmFiltered.joined(separator: ", "))\n"
+        }
+
+        return result
+    }
+}
+
 // MARK: - Preview
 
 #Preview {

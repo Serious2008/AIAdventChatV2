@@ -1921,5 +1921,60 @@ class ChatViewModel: ObservableObject {
         let ragService = RAGService(vectorSearchService: vectorSearchService)
         return try await ragService.answerWithRAG(question: question, topK: topK)
     }
+
+    /// Compare different reranking strategies
+    func compareRerankingStrategies(question: String, topK: Int = 5) async throws -> RerankingComparisonResult {
+        print("🎯 Starting reranking strategies comparison for: \(question)")
+
+        let ragService = RAGService(vectorSearchService: vectorSearchService)
+
+        // Get search results first (for comparison)
+        let searchResults = try await vectorSearchService.search(query: question, topK: 15)
+
+        // Test all strategies
+        async let noFilterTask = try ragService.answerWithRAG(
+            question: question,
+            topK: topK,
+            rerankingStrategy: .none
+        )
+
+        async let thresholdTask = try ragService.answerWithRAG(
+            question: question,
+            topK: topK,
+            rerankingStrategy: .threshold(0.5)
+        )
+
+        async let adaptiveTask = try ragService.answerWithRAG(
+            question: question,
+            topK: topK,
+            rerankingStrategy: .adaptive
+        )
+
+        async let llmBasedTask = try ragService.answerWithRAG(
+            question: question,
+            topK: topK,
+            rerankingStrategy: .llmBased
+        )
+
+        // Wait for all results
+        let (noFilter, threshold, adaptive, llmBased) = try await (
+            noFilterTask,
+            thresholdTask,
+            adaptiveTask,
+            llmBasedTask
+        )
+
+        let result = RerankingComparisonResult(
+            question: question,
+            originalResults: searchResults,
+            noFilterResults: noFilter,
+            thresholdResults: threshold,
+            adaptiveResults: adaptive,
+            llmResults: llmBased
+        )
+
+        print("✅ Reranking comparison complete")
+        return result
+    }
 }
 
