@@ -153,6 +153,41 @@ struct RerankingComparisonView: View {
                             }
                             .padding(.horizontal)
 
+                            // Answers Comparison
+                            VStack(spacing: 16) {
+                                Text("Ответы LLM с разной фильтрацией")
+                                    .font(.headline)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.horizontal)
+
+                                VStack(spacing: 12) {
+                                    AnswerComparisonCard(
+                                        title: "1️⃣ Без фильтра",
+                                        answer: result.noFilterResults.answer,
+                                        color: .gray
+                                    )
+
+                                    AnswerComparisonCard(
+                                        title: "2️⃣ Threshold (50%)",
+                                        answer: result.thresholdResults.answer,
+                                        color: .blue
+                                    )
+
+                                    AnswerComparisonCard(
+                                        title: "3️⃣ Adaptive",
+                                        answer: result.adaptiveResults.answer,
+                                        color: .orange
+                                    )
+
+                                    AnswerComparisonCard(
+                                        title: "4️⃣ LLM-based",
+                                        answer: result.llmResults.answer,
+                                        color: .green
+                                    )
+                                }
+                                .padding(.horizontal)
+                            }
+
                             // Analysis
                             GroupBox(label: Label("Анализ", systemImage: "sparkles")) {
                                 VStack(alignment: .leading, spacing: 12) {
@@ -401,6 +436,71 @@ struct StatRow: View {
                 .font(.caption)
                 .fontWeight(.medium)
         }
+    }
+}
+
+// MARK: - Answer Comparison Card
+
+struct AnswerComparisonCard: View {
+    let title: String
+    let answer: String
+    let color: Color
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Header
+            HStack {
+                Text(title)
+                    .font(.headline)
+                Spacer()
+                Button(action: { isExpanded.toggle() }) {
+                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                        .foregroundColor(color)
+                }
+            }
+
+            Divider()
+
+            // Answer preview or full
+            if isExpanded {
+                ScrollView {
+                    Text(answer)
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 300)
+            } else {
+                Text(answer.prefix(200) + (answer.count > 200 ? "..." : ""))
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .lineLimit(3)
+            }
+
+            // Stats
+            HStack {
+                Label("\(answer.count) символов", systemImage: "text.alignleft")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                Button(isExpanded ? "Свернуть" : "Развернуть") {
+                    isExpanded.toggle()
+                }
+                .font(.caption)
+                .foregroundColor(color)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(color.opacity(0.3), lineWidth: 2)
+        )
     }
 }
 
