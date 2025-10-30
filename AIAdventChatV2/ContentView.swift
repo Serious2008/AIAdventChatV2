@@ -75,6 +75,14 @@ struct ContentView: View {
                 Label("Reranking", systemImage: "slider.horizontal.3")
             }
             .tag(6)
+
+            NavigationStack {
+                CitationTestView(viewModel: chatViewModel)
+            }
+            .tabItem {
+                Label("Citations", systemImage: "quote.bubble.fill")
+            }
+            .tag(7)
         }
     }
 }

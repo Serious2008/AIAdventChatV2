@@ -127,9 +127,12 @@ class RAGService {
         return """
         Ты - AI ассистент, который помогает разработчикам понять их код.
 
-        Используй ТОЛЬКО информацию из предоставленного контекста для ответа на вопрос.
-        Если в контексте нет информации для ответа, скажи это честно.
-        Всегда указывай из какого источника ты взял информацию.
+        КРИТИЧЕСКИ ВАЖНО - ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ:
+        1. Используй ТОЛЬКО информацию из предоставленного контекста
+        2. ОБЯЗАТЕЛЬНО указывай [Источник N] после КАЖДОГО утверждения
+        3. Включай прямые цитаты кода в блоках ```
+        4. В конце ответа добавь секцию "Источники:" со списком всех использованных файлов
+        5. Если информации нет - скажи это честно и НЕ придумывай
 
         КОНТЕКСТ ИЗ КОДОВОЙ БАЗЫ:
         \(context)
@@ -137,14 +140,17 @@ class RAGService {
         ВОПРОС ПОЛЬЗОВАТЕЛЯ:
         \(question)
 
-        ИНСТРУКЦИИ:
-        1. Внимательно изучи предоставленный контекст
-        2. Найди информацию, релевантную вопросу
-        3. Дай точный ответ, основанный на контексте
-        4. Укажи источники (номера источников в квадратных скобках)
-        5. Если информации недостаточно - скажи об этом
+        ФОРМАТ ОТВЕТА (ОБЯЗАТЕЛЕН):
 
-        ОТВЕТ:
+        [Основной ответ с маркерами [Источник 1], [Источник 2] после каждого факта]
+
+        [Цитаты кода в блоках ```swift если есть]
+
+        Источники:
+        [1] FileName.swift - краткое описание
+        [2] FileName.swift - краткое описание
+
+        НАЧНИ ОТВЕТ СЕЙЧАС:
         """
     }
 
@@ -196,6 +202,118 @@ class RAGService {
         }
 
         return text
+    }
+
+    // MARK: - Citation Validation
+
+    /// Validates if answer contains proper citations
+    func validateCitations(_ answer: String) -> CitationValidation {
+        // Check for source markers like [Источник N] or [N]
+        let sourceMarkerPattern = #"\[Источник\s+\d+\]|\[\d+\]"#
+        let hasSourceMarkers = answer.range(of: sourceMarkerPattern, options: .regularExpression) != nil
+
+        // Count citations
+        let regex = try? NSRegularExpression(pattern: sourceMarkerPattern, options: [])
+        let matches = regex?.matches(in: answer, options: [], range: NSRange(answer.startIndex..., in: answer))
+        let citationCount = matches?.count ?? 0
+
+        // Check for "Источники:" section
+        let hasSourcesSection = answer.contains("Источники:") || answer.contains("Sources:")
+
+        // Check for file references (.swift, .md, etc.)
+        let hasFileReferences = answer.contains(".swift") || answer.contains(".md")
+
+        // Check for code blocks
+        let hasCodeBlocks = answer.contains("```")
+
+        return CitationValidation(
+            hasSourceMarkers: hasSourceMarkers,
+            hasSourcesSection: hasSourcesSection,
+            hasFileReferences: hasFileReferences,
+            hasCodeBlocks: hasCodeBlocks,
+            citationCount: citationCount
+        )
+    }
+
+    /// Answer with mandatory citations (with retry if needed)
+    func answerWithMandatoryCitations(
+        question: String,
+        topK: Int = 5,
+        minSimilarity: Double = 0.3,
+        rerankingStrategy: RerankingStrategy = .threshold(0.5),
+        maxAttempts: Int = 2
+    ) async throws -> RAGResponse {
+
+        var attempts = 0
+
+        while attempts < maxAttempts {
+            print("🔍 RAG Citations: Attempt \(attempts + 1)/\(maxAttempts)")
+
+            // Get answer
+            let response = try await answerWithRAG(
+                question: question,
+                topK: topK,
+                minSimilarity: minSimilarity,
+                rerankingStrategy: rerankingStrategy
+            )
+
+            // Validate citations
+            let validation = validateCitations(response.answer)
+
+            print("📊 Citation validation: markers=\(validation.hasSourceMarkers), count=\(validation.citationCount), sources=\(validation.hasSourcesSection)")
+
+            // Check if valid
+            if validation.isValid {
+                print("✅ RAG Citations: Valid! Citations found: \(validation.citationCount)")
+                return response
+            }
+
+            // If invalid and not last attempt, retry
+            attempts += 1
+            if attempts < maxAttempts {
+                print("⚠️ RAG Citations: Invalid, retrying with stricter prompt...")
+                // Note: In a more sophisticated implementation, we could modify the prompt here
+            }
+        }
+
+        // If all attempts failed, throw error
+        print("❌ RAG Citations: Failed to get valid citations after \(maxAttempts) attempts")
+        throw RAGError.noRelevantContext
+    }
+}
+
+// MARK: - Citation Validation
+
+struct CitationValidation {
+    let hasSourceMarkers: Bool
+    let hasSourcesSection: Bool
+    let hasFileReferences: Bool
+    let hasCodeBlocks: Bool
+    let citationCount: Int
+
+    var isValid: Bool {
+        // At minimum, need source markers and at least 1 citation
+        return hasSourceMarkers && citationCount >= 1
+    }
+
+    var score: Double {
+        var score = 0.0
+        if hasSourceMarkers { score += 0.3 }
+        if hasSourcesSection { score += 0.3 }
+        if hasFileReferences { score += 0.2 }
+        if hasCodeBlocks { score += 0.2 }
+        return score
+    }
+
+    var summary: String {
+        """
+        ✅ Маркеры источников: \(hasSourceMarkers ? "Да" : "Нет")
+        ✅ Секция "Источники": \(hasSourcesSection ? "Да" : "Нет")
+        ✅ Упоминания файлов: \(hasFileReferences ? "Да" : "Нет")
+        ✅ Блоки кода: \(hasCodeBlocks ? "Да" : "Нет")
+        📊 Количество цитат: \(citationCount)
+        🎯 Качество: \(String(format: "%.0f%%", score * 100))
+        """
     }
 }
 

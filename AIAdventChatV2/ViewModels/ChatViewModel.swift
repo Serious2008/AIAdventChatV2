@@ -1976,5 +1976,17 @@ class ChatViewModel: ObservableObject {
         print("✅ Reranking comparison complete")
         return result
     }
+
+    /// Test question with mandatory citations
+    func testCitationQuestion(question: String) async throws -> (answer: String, validation: CitationValidation, time: TimeInterval) {
+        let ragService = RAGService(vectorSearchService: vectorSearchService)
+        let startTime = Date()
+
+        let response = try await ragService.answerWithMandatoryCitations(question: question)
+        let validation = ragService.validateCitations(response.answer)
+        let processingTime = Date().timeIntervalSince(startTime)
+
+        return (response.answer, validation, processingTime)
+    }
 }
 
