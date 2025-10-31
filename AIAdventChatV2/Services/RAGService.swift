@@ -280,6 +280,168 @@ class RAGService {
         print("❌ RAG Citations: Failed to get valid citations after \(maxAttempts) attempts")
         throw RAGError.noRelevantContext
     }
+
+    /// Answer with RAG using dialog history for context
+    func answerWithHistory(
+        question: String,
+        history: [Message],
+        topK: Int = 5,
+        rerankingStrategy: RerankingStrategy = .threshold(0.5),
+        maxAttempts: Int = 2
+    ) async throws -> RAGResponse {
+        let startTime = Date()
+
+        print("🔍 RAG with History: Processing question with \(history.count) previous messages")
+
+        // Step 1: Search for relevant chunks
+        let candidateCount = rerankingStrategy == .llmBased ? 15 : topK
+        let searchResults = try await vectorSearchService.search(query: question, topK: candidateCount)
+
+        // Step 2: Rerank results
+        print("🎯 RAG with History: Applying reranking strategy: \(rerankingStrategy)")
+        let reranker = RerankerService()
+        let relevantChunks = try await reranker.rerank(
+            results: searchResults,
+            question: question,
+            strategy: rerankingStrategy,
+            topK: topK
+        )
+
+        guard !relevantChunks.isEmpty else {
+            throw RAGError.noRelevantContext
+        }
+
+        print("📚 RAG with History: Selected \(relevantChunks.count) chunks after reranking")
+
+        // Step 3: Build context from chunks and history
+        let documentContext = buildContext(from: relevantChunks)
+        let historyContext = buildHistoryContext(history: history)
+
+        // Step 4: Build prompt with both contexts
+        let prompt = buildRAGPromptWithHistory(
+            question: question,
+            documentContext: documentContext,
+            historyContext: historyContext
+        )
+
+        print("💬 RAG with History: Sending prompt to LLM...")
+
+        // Step 5: Try to get answer with valid citations
+        var attempts = 0
+        while attempts < maxAttempts {
+            print("🔍 RAG History Citations: Attempt \(attempts + 1)/\(maxAttempts)")
+
+            // Send to LLM
+            let answer = try await sendToLLM(prompt: prompt)
+
+            // Validate citations
+            let validation = validateCitations(answer)
+
+            print("📊 Citation validation: markers=\(validation.hasSourceMarkers), count=\(validation.citationCount)")
+
+            if validation.isValid {
+                let processingTime = Date().timeIntervalSince(startTime)
+                print("✅ RAG with History: Complete in \(String(format: "%.2f", processingTime))s")
+
+                return RAGResponse(
+                    answer: answer,
+                    usedChunks: relevantChunks,
+                    question: question,
+                    processingTime: processingTime
+                )
+            }
+
+            attempts += 1
+            if attempts < maxAttempts {
+                print("⚠️ RAG History: Invalid citations, retrying...")
+            }
+        }
+
+        // If all attempts failed, throw error
+        print("❌ RAG History: Failed to get valid citations after \(maxAttempts) attempts")
+        throw RAGError.noRelevantContext
+    }
+
+    // MARK: - History Context Helpers
+
+    private func buildHistoryContext(history: [Message]) -> String {
+        guard !history.isEmpty else {
+            return ""
+        }
+
+        // Take last 5 messages (or fewer if less available)
+        let recentHistory = Array(history.suffix(5))
+
+        var context = ""
+        for message in recentHistory {
+            let role = message.isFromUser ? "Пользователь" : "Ассистент"
+            let timestamp = formatTimestamp(message.timestamp)
+            context += """
+            [\(role) - \(timestamp)]:
+            \(message.displayText)
+
+            """
+        }
+
+        return context
+    }
+
+    private func buildRAGPromptWithHistory(
+        question: String,
+        documentContext: String,
+        historyContext: String
+    ) -> String {
+        var prompt = """
+        Ты - AI ассистент, который помогает разработчикам понять их код.
+
+        КРИТИЧЕСКИ ВАЖНО - ОБЯЗАТЕЛЬНЫЕ ТРЕБОВАНИЯ:
+        1. Используй информацию из КОНТЕКСТА КОДОВОЙ БАЗЫ и ИСТОРИИ ДИАЛОГА
+        2. ОБЯЗАТЕЛЬНО указывай [Источник N] после КАЖДОГО утверждения из кодовой базы
+        3. Включай прямые цитаты кода в блоках ```
+        4. В конце ответа добавь секцию "Источники:" со списком всех использованных файлов
+        5. Если информации нет - скажи это честно и НЕ придумывай
+
+        КОНТЕКСТ ИЗ КОДОВОЙ БАЗЫ:
+        \(documentContext)
+
+        """
+
+        if !historyContext.isEmpty {
+            prompt += """
+
+            ИСТОРИЯ ПРЕДЫДУЩЕГО ДИАЛОГА:
+            \(historyContext)
+
+            """
+        }
+
+        prompt += """
+
+        ВОПРОС ПОЛЬЗОВАТЕЛЯ:
+        \(question)
+
+        ФОРМАТ ОТВЕТА (ОБЯЗАТЕЛЕН):
+
+        [Основной ответ с маркерами [Источник 1], [Источник 2] после каждого факта из кода]
+
+        [Цитаты кода в блоках ```swift если есть]
+
+        Источники:
+        [1] FileName.swift - краткое описание
+        [2] FileName.swift - краткое описание
+
+        НАЧНИ ОТВЕТ СЕЙЧАС:
+        """
+
+        return prompt
+    }
+
+    private func formatTimestamp(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        formatter.dateStyle = .none
+        return formatter.string(from: date)
+    }
 }
 
 // MARK: - Citation Validation

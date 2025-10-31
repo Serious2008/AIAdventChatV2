@@ -225,6 +225,11 @@ struct MessageBubble: View {
                                         .background(Color.gray.opacity(0.1))
                                         .cornerRadius(8)
                                     }
+
+                                    // RAG Sources
+                                    if message.usedRAG, let ragSources = message.ragSources, !ragSources.isEmpty {
+                                        RAGSourcesView(sources: ragSources, citationCount: message.citationCount ?? 0)
+                                    }
                                 }
                             }
                         } else {
@@ -353,6 +358,11 @@ struct MessageBubble: View {
                                     .background(Color.gray.opacity(0.1))
                                     .cornerRadius(8)
                                 }
+
+                                // RAG Sources (in fallback section)
+                                if message.usedRAG, let ragSources = message.ragSources, !ragSources.isEmpty {
+                                    RAGSourcesView(sources: ragSources, citationCount: message.citationCount ?? 0)
+                                }
                             }
                         }
                     }
@@ -396,5 +406,113 @@ struct MessageBubble: View {
             return "xmark.circle.fill"
         }
         return "circle.fill"
+    }
+}
+
+// MARK: - RAG Sources View
+
+struct RAGSourcesView: View {
+    let sources: [RAGSource]
+    let citationCount: Int
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header with expand button
+            Button(action: { isExpanded.toggle() }) {
+                HStack {
+                    Image(systemName: "doc.text.magnifyingglass")
+                        .foregroundColor(.green)
+                    Text("RAG Источники:")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.secondary)
+
+                    Spacer()
+
+                    HStack(spacing: 8) {
+                        // Citation count badge
+                        HStack(spacing: 4) {
+                            Image(systemName: "quote.bubble.fill")
+                                .font(.caption2)
+                            Text("\(citationCount)")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                        }
+                        .foregroundColor(.green)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.green.opacity(0.15))
+                        .cornerRadius(4)
+
+                        // Sources count badge
+                        HStack(spacing: 4) {
+                            Image(systemName: "doc.fill")
+                                .font(.caption2)
+                            Text("\(sources.count)")
+                                .font(.caption2)
+                                .fontWeight(.bold)
+                        }
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.blue.opacity(0.15))
+                        .cornerRadius(4)
+
+                        Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            // Expanded sources list
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(sources.enumerated()), id: \.element.id) { index, source in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("[\(index + 1)]")
+                                    .font(.caption2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.green)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.15))
+                                    .cornerRadius(4)
+
+                                Text(source.fileName)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.primary)
+
+                                Spacer()
+
+                                Text("\(String(format: "%.0f%%", source.similarity * 100))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Text(source.chunkContent.prefix(100) + "...")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .lineLimit(2)
+                        }
+                        .padding(8)
+                        .background(Color.gray.opacity(0.05))
+                        .cornerRadius(6)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.green.opacity(0.05))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.green.opacity(0.3), lineWidth: 1)
+        )
     }
 }

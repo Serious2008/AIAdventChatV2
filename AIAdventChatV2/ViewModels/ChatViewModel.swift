@@ -1988,5 +1988,99 @@ class ChatViewModel: ObservableObject {
 
         return (response.answer, validation, processingTime)
     }
+
+    // MARK: - RAG Chat with History
+
+    /// Send message using RAG with dialog history
+    func sendMessageWithRAG(enableRAG: Bool = true) {
+        guard !currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard settings.isConfigured else {
+            errorMessage = "API ключ не настроен. Пожалуйста, добавьте его в настройках."
+            return
+        }
+
+        // Create and save user message
+        let userMessage = Message(content: currentMessage, isFromUser: true)
+        messages.append(userMessage)
+        autoSaveMessage(userMessage)
+        autoUpdateConversationTitle()
+
+        let messageToSend = currentMessage
+        currentMessage = ""
+        isLoading = true
+        errorMessage = nil
+
+        Task {
+            do {
+                if enableRAG {
+                    // RAG mode: use document context + history
+                    print("🔍 Sending message with RAG + History")
+
+                    let ragService = RAGService(vectorSearchService: vectorSearchService)
+
+                    // Get previous messages as history (exclude current user message)
+                    let historyMessages = Array(messages.dropLast())
+
+                    // Get answer with citations
+                    let response = try await ragService.answerWithHistory(
+                        question: messageToSend,
+                        history: historyMessages,
+                        topK: 5,
+                        rerankingStrategy: .threshold(0.5),
+                        maxAttempts: 2
+                    )
+
+                    // Extract citations
+                    let validation = ragService.validateCitations(response.answer)
+
+                    // Convert SearchResults to RAGSource
+                    let ragSources = response.usedChunks.map { searchResult in
+                        RAGSource(
+                            fileName: searchResult.chunk.fileName,
+                            similarity: searchResult.similarity,
+                            chunkContent: searchResult.chunk.content
+                        )
+                    }
+
+                    await MainActor.run {
+                        // Create message with RAG metadata
+                        let assistantMessage = Message(
+                            content: response.answer,
+                            isFromUser: false,
+                            temperature: self.settings.temperature,
+                            metrics: (
+                                responseTime: response.processingTime,
+                                inputTokens: nil,
+                                outputTokens: nil,
+                                cost: nil,
+                                modelName: "claude-3-7-sonnet-20250219"
+                            ),
+                            usedRAG: true,
+                            ragSources: ragSources,
+                            citationCount: validation.citationCount
+                        )
+
+                        self.messages.append(assistantMessage)
+                        self.autoSaveMessage(assistantMessage)
+                        self.isLoading = false
+
+                        print("✅ RAG message sent. Citations: \(validation.citationCount), Sources: \(ragSources.count)")
+                    }
+                } else {
+                    // Normal mode: send to Claude directly
+                    print("💬 Sending message without RAG (normal mode)")
+                    await MainActor.run {
+                        self.sendToClaudeDirectly(message: messageToSend)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.isLoading = false
+                    self.errorMessage = "Ошибка RAG: \(error.localizedDescription)"
+                    print("❌ RAG Error: \(error)")
+                }
+            }
+        }
+    }
 }
 

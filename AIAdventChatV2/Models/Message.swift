@@ -13,6 +13,21 @@ struct MessageContent: Codable {
     let additional_info: String?
 }
 
+// RAG Source metadata
+struct RAGSource: Codable, Identifiable {
+    let id: UUID
+    let fileName: String
+    let similarity: Double
+    let chunkContent: String
+
+    init(fileName: String, similarity: Double, chunkContent: String) {
+        self.id = UUID()
+        self.fileName = fileName
+        self.similarity = similarity
+        self.chunkContent = chunkContent
+    }
+}
+
 struct Message: Identifiable, Codable {
     let id: UUID
     let content: String
@@ -27,14 +42,31 @@ struct Message: Identifiable, Codable {
     var modelName: String?
     var isSystemMessage: Bool = false
 
+    // RAG metadata
+    var usedRAG: Bool = false
+    var ragSources: [RAGSource]? = nil
+    var citationCount: Int? = nil
+
     // Convenience initializer for new messages
-    init(content: String, isFromUser: Bool, temperature: Double? = nil, metrics: (responseTime: TimeInterval, inputTokens: Int?, outputTokens: Int?, cost: Double?, modelName: String?)? = nil, isSystemMessage: Bool = false) {
+    init(
+        content: String,
+        isFromUser: Bool,
+        temperature: Double? = nil,
+        metrics: (responseTime: TimeInterval, inputTokens: Int?, outputTokens: Int?, cost: Double?, modelName: String?)? = nil,
+        isSystemMessage: Bool = false,
+        usedRAG: Bool = false,
+        ragSources: [RAGSource]? = nil,
+        citationCount: Int? = nil
+    ) {
         self.id = UUID()
         self.content = content
         self.isFromUser = isFromUser
         self.timestamp = Date()
         self.temperature = temperature
         self.isSystemMessage = isSystemMessage
+        self.usedRAG = usedRAG
+        self.ragSources = ragSources
+        self.citationCount = citationCount
 
         if let metrics = metrics {
             self.responseTime = metrics.responseTime
@@ -63,7 +95,10 @@ struct Message: Identifiable, Codable {
         outputTokens: Int? = nil,
         cost: Double? = nil,
         modelName: String? = nil,
-        isSystemMessage: Bool = false
+        isSystemMessage: Bool = false,
+        usedRAG: Bool = false,
+        ragSources: [RAGSource]? = nil,
+        citationCount: Int? = nil
     ) {
         self.id = id
         self.content = content
@@ -77,6 +112,9 @@ struct Message: Identifiable, Codable {
         self.cost = cost
         self.modelName = modelName
         self.isSystemMessage = isSystemMessage
+        self.usedRAG = usedRAG
+        self.ragSources = ragSources
+        self.citationCount = citationCount
     }
 
     private static func parseJSON(from text: String) -> MessageContent? {

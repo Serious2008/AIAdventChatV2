@@ -13,6 +13,7 @@ struct ChatView: View {
     @State private var showingSettings = false
     @State private var showingGeneratedDocument = false
     @State private var showingConversationList = false
+    @State private var enableRAG = false
 
     private var canSendMessage: Bool {
         // Проверяем базовые условия
@@ -243,6 +244,36 @@ struct ChatView: View {
                 )
             }
 
+            // RAG Mode Toggle
+            HStack(spacing: 12) {
+                Toggle(isOn: $enableRAG) {
+                    HStack(spacing: 6) {
+                        Image(systemName: enableRAG ? "doc.text.magnifyingglass.fill" : "doc.text.magnifyingglass")
+                            .foregroundColor(enableRAG ? .green : .gray)
+                        Text(enableRAG ? "RAG включён" : "RAG выключен")
+                            .font(.caption)
+                            .foregroundColor(enableRAG ? .green : .secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+                .help("Включить поиск по документам с историей диалога")
+
+                Spacer()
+
+                if enableRAG {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                            .font(.caption)
+                        Text("Ответы с цитатами из кодовой базы")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
+
             // Поле ввода и кнопка отправки
             HStack(spacing: 12) {
                 // Pipeline button
@@ -264,16 +295,30 @@ struct ChatView: View {
                     .lineLimit(1...10)
                     .onSubmit {
                         if canSendMessage {
-                            viewModel.sendMessage()
+                            if enableRAG {
+                                viewModel.sendMessageWithRAG(enableRAG: true)
+                            } else {
+                                viewModel.sendMessage()
+                            }
                         }
                     }
 
                 Button(action: {
-                    viewModel.sendMessage()
+                    if enableRAG {
+                        viewModel.sendMessageWithRAG(enableRAG: true)
+                    } else {
+                        viewModel.sendMessage()
+                    }
                 }) {
-                    Image(systemName: "paperplane.fill")
-                        .font(.title2)
-                        .foregroundColor(canSendMessage ? .blue : .gray)
+                    HStack(spacing: 4) {
+                        if enableRAG {
+                            Image(systemName: "doc.text.magnifyingglass")
+                                .font(.caption)
+                        }
+                        Image(systemName: "paperplane.fill")
+                            .font(.title2)
+                    }
+                    .foregroundColor(canSendMessage ? (enableRAG ? .green : .blue) : .gray)
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSendMessage)
