@@ -7,5 +7,9 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AIAdventChat нужен доступ к микрофону для распознавания голосовых команд и преобразования речи в текст</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>AIAdventChat использует распознавание речи для преобразования ваших голосовых команд в текст, который затем отправляется в AI модель</string>
 </dict>
 </plist>

@@ -49,6 +49,11 @@ class ChatViewModel: ObservableObject {
     @Published var indexingStatistics: IndexingStatistics?
     @Published var showingSearchResults: Bool = false
 
+    // Voice Input
+    @Published var speechRecognitionService: SpeechRecognitionService
+    @Published var isListening: Bool = false
+    @Published var voiceInputText: String = ""
+
     internal let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
@@ -76,6 +81,7 @@ class ChatViewModel: ObservableObject {
 
     init(settings: Settings) {
         self.settings = settings
+        self.speechRecognitionService = SpeechRecognitionService()
         periodicTaskService.chatViewModel = self
 
         print("🚀 ChatViewModel initialized")
@@ -2079,6 +2085,96 @@ class ChatViewModel: ObservableObject {
                     self.errorMessage = "Ошибка RAG: \(error.localizedDescription)"
                     print("❌ RAG Error: \(error)")
                 }
+            }
+        }
+    }
+
+    // MARK: - Voice Input
+
+    /// Start voice input (recording and recognition)
+    func startVoiceInput() async {
+        print("🎤 Starting voice input...")
+
+        // Request authorization first
+        let authorized = await speechRecognitionService.requestAuthorization()
+
+        guard authorized else {
+            await MainActor.run {
+                self.errorMessage = "Нет разрешения на использование микрофона или распознавания речи"
+            }
+            print("❌ Voice input not authorized")
+            return
+        }
+
+        // Start recording
+        do {
+            try speechRecognitionService.startRecording()
+
+            await MainActor.run {
+                self.isListening = true
+                self.voiceInputText = ""
+                self.errorMessage = nil
+            }
+
+            print("✅ Voice input started")
+        } catch {
+            await MainActor.run {
+                self.errorMessage = "Ошибка запуска записи: \(error.localizedDescription)"
+                self.isListening = false
+            }
+            print("❌ Voice input error: \(error)")
+        }
+    }
+
+    /// Stop voice input and send to LLM
+    func stopVoiceInputAndSend() {
+        print("⏹ Stopping voice input and sending...")
+
+        // Stop recording
+        speechRecognitionService.stopRecording()
+
+        // Wait a bit for final recognition
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // Get recognized text
+            let recognizedText = self.speechRecognitionService.recognizedText
+
+            // Set as current message
+            self.currentMessage = recognizedText
+
+            // Update state
+            self.isListening = false
+            self.voiceInputText = ""
+
+            // Send to LLM if text is not empty
+            if !recognizedText.isEmpty {
+                print("📤 Sending recognized text: \(recognizedText)")
+                self.sendMessage()
+            } else {
+                self.errorMessage = "Не удалось распознать речь. Попробуйте ещё раз."
+                print("⚠️ No text recognized")
+            }
+        }
+    }
+
+    /// Cancel voice input without sending
+    func cancelVoiceInput() {
+        print("❌ Cancelling voice input...")
+
+        speechRecognitionService.cancelRecording()
+
+        isListening = false
+        voiceInputText = ""
+
+        print("✅ Voice input cancelled")
+    }
+
+    /// Toggle voice input (start/stop)
+    func toggleVoiceInput() {
+        if isListening {
+            stopVoiceInputAndSend()
+        } else {
+            Task {
+                await startVoiceInput()
             }
         }
     }

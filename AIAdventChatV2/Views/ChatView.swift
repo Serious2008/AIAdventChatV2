@@ -303,6 +303,17 @@ struct ChatView: View {
                         }
                     }
 
+                // Voice Input Button
+                Button(action: {
+                    viewModel.toggleVoiceInput()
+                }) {
+                    Image(systemName: viewModel.isListening ? "stop.circle.fill" : "mic.circle.fill")
+                        .font(.title)
+                        .foregroundColor(viewModel.isListening ? .red : .blue)
+                }
+                .buttonStyle(.plain)
+                .help(viewModel.isListening ? "Остановить запись и отправить" : "Голосовой ввод")
+
                 Button(action: {
                     if enableRAG {
                         viewModel.sendMessageWithRAG(enableRAG: true)
@@ -326,7 +337,35 @@ struct ChatView: View {
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
-            
+
+            // Voice input indicator
+            if viewModel.isListening {
+                HStack(spacing: 8) {
+                    Image(systemName: "waveform")
+                        .foregroundColor(.red)
+                        .font(.body)
+
+                    Text("Слушаю... (нажмите снова чтобы отправить)")
+                        .font(.caption)
+                        .foregroundColor(.red)
+
+                    if !viewModel.speechRecognitionService.recognizedText.isEmpty {
+                        Divider()
+                            .frame(height: 20)
+
+                        Text("Распознано: \"\(viewModel.speechRecognitionService.recognizedText)\"")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(2)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .background(Color.red.opacity(0.1))
+            }
+
             // Показ ошибок
             if let errorMessage = viewModel.errorMessage {
                 HStack {
