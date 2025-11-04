@@ -217,7 +217,7 @@ struct UserProfileView: View {
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
         }
-        .frame(width: 700, height: 800)
+        .frame(width: 700, height: 650)
         .sheet(isPresented: $showingExportSheet) {
             ExportProfileView(json: exportedJSON)
         }
