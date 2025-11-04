@@ -54,6 +54,9 @@ class ChatViewModel: ObservableObject {
     @Published var isListening: Bool = false
     @Published var voiceInputText: String = ""
 
+    // User Personalization
+    @Published var userProfileService: UserProfileService
+
     internal let settings: Settings
     private var cancellables = Set<AnyCancellable>()
     private let huggingFaceService = HuggingFaceService()
@@ -82,6 +85,7 @@ class ChatViewModel: ObservableObject {
     init(settings: Settings) {
         self.settings = settings
         self.speechRecognitionService = SpeechRecognitionService()
+        self.userProfileService = UserProfileService()
         periodicTaskService.chatViewModel = self
 
         print("🚀 ChatViewModel initialized")
@@ -568,10 +572,14 @@ class ChatViewModel: ObservableObject {
                     """
             }
 
+            // Добавляем профиль пользователя в начало prompt
+            let userProfileContext = userProfileService.profile.toSystemPrompt()
+
             systemPrompt = """
                 Вы - \(capabilitiesText).
                 \(toolsDescription)
 
+                \(userProfileContext.isEmpty ? "" : userProfileContext + "\n")
                 Для обычных вопросов отвечайте как обычный ассистент.
                 Используйте естественный язык для всех ответов.
                 """

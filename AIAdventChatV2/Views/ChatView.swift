@@ -13,6 +13,7 @@ struct ChatView: View {
     @State private var showingSettings = false
     @State private var showingGeneratedDocument = false
     @State private var showingConversationList = false
+    @State private var showingUserProfile = false
     @State private var enableRAG = false
 
     private var canSendMessage: Bool {
@@ -101,6 +102,26 @@ struct ChatView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                // User Profile button
+                Button(action: {
+                    showingUserProfile = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.circle.fill")
+                            .font(.title2)
+
+                        // Show indicator if profile is configured
+                        if viewModel.userProfileService.profile.isConfigured {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .foregroundColor(.green)
+                }
+                .buttonStyle(.plain)
+                .help("Мой профиль")
 
                 Button(action: {
                     showingSettings = true
@@ -392,6 +413,9 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingConversationList) {
             ConversationListView(viewModel: viewModel)
+        }
+        .sheet(isPresented: $showingUserProfile) {
+            UserProfileView(service: viewModel.userProfileService)
         }
         .sheet(isPresented: $viewModel.showingPipelineResult) {
             if let result = viewModel.pipelineResult {
