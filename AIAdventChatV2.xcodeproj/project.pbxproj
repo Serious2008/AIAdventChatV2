@@ -10,8 +10,19 @@
 		440F9BED2E9D673F0080DFBB /* MCP in Frameworks */ = {isa = PBXBuildFile; productRef = 440F9BEC2E9D673F0080DFBB /* MCP */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		440F9D6D2EBBD3AC0080DFBB /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 440F9B5D2E8D950D0080DFBB /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 440F9B642E8D950D0080DFBB;
+			remoteInfo = AIAdventChatV2;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		440F9B652E8D950D0080DFBB /* AIAdventChatV2.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIAdventChatV2.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		440F9D692EBBD3AC0080DFBB /* AIAdventChatV2Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AIAdventChatV2Tests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -33,6 +44,11 @@
 			path = AIAdventChatV2;
 			sourceTree = "<group>";
 		};
+		440F9D6A2EBBD3AC0080DFBB /* AIAdventChatV2Tests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AIAdventChatV2Tests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -44,6 +60,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		440F9D662EBBD3AC0080DFBB /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -51,6 +74,7 @@
 			isa = PBXGroup;
 			children = (
 				440F9B672E8D950D0080DFBB /* AIAdventChatV2 */,
+				440F9D6A2EBBD3AC0080DFBB /* AIAdventChatV2Tests */,
 				440F9B662E8D950D0080DFBB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -59,6 +83,7 @@
 			isa = PBXGroup;
 			children = (
 				440F9B652E8D950D0080DFBB /* AIAdventChatV2.app */,
+				440F9D692EBBD3AC0080DFBB /* AIAdventChatV2Tests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,6 +114,29 @@
 			productReference = 440F9B652E8D950D0080DFBB /* AIAdventChatV2.app */;
 			productType = "com.apple.product-type.application";
 		};
+		440F9D682EBBD3AC0080DFBB /* AIAdventChatV2Tests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 440F9D6F2EBBD3AC0080DFBB /* Build configuration list for PBXNativeTarget "AIAdventChatV2Tests" */;
+			buildPhases = (
+				440F9D652EBBD3AC0080DFBB /* Sources */,
+				440F9D662EBBD3AC0080DFBB /* Frameworks */,
+				440F9D672EBBD3AC0080DFBB /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				440F9D6E2EBBD3AC0080DFBB /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				440F9D6A2EBBD3AC0080DFBB /* AIAdventChatV2Tests */,
+			);
+			name = AIAdventChatV2Tests;
+			packageProductDependencies = (
+			);
+			productName = AIAdventChatV2Tests;
+			productReference = 440F9D692EBBD3AC0080DFBB /* AIAdventChatV2Tests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -101,6 +149,10 @@
 				TargetAttributes = {
 					440F9B642E8D950D0080DFBB = {
 						CreatedOnToolsVersion = 16.4;
+					};
+					440F9D682EBBD3AC0080DFBB = {
+						CreatedOnToolsVersion = 16.4;
+						TestTargetID = 440F9B642E8D950D0080DFBB;
 					};
 				};
 			};
@@ -122,12 +174,20 @@
 			projectRoot = "";
 			targets = (
 				440F9B642E8D950D0080DFBB /* AIAdventChatV2 */,
+				440F9D682EBBD3AC0080DFBB /* AIAdventChatV2Tests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		440F9B632E8D950D0080DFBB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		440F9D672EBBD3AC0080DFBB /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -144,7 +204,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		440F9D652EBBD3AC0080DFBB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		440F9D6E2EBBD3AC0080DFBB /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 440F9B642E8D950D0080DFBB /* AIAdventChatV2 */;
+			targetProxy = 440F9D6D2EBBD3AC0080DFBB /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		440F9B6F2E8D950E0080DFBB /* Debug */ = {
@@ -317,6 +392,38 @@
 			};
 			name = Release;
 		};
+		440F9D702EBBD3AC0080DFBB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.AIAdventChatV2Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIAdventChatV2.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AIAdventChatV2";
+			};
+			name = Debug;
+		};
+		440F9D712EBBD3AC0080DFBB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.AIAdventChatV2Tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AIAdventChatV2.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AIAdventChatV2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -334,6 +441,15 @@
 			buildConfigurations = (
 				440F9B722E8D950E0080DFBB /* Debug */,
 				440F9B732E8D950E0080DFBB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		440F9D6F2EBBD3AC0080DFBB /* Build configuration list for PBXNativeTarget "AIAdventChatV2Tests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				440F9D702EBBD3AC0080DFBB /* Debug */,
+				440F9D712EBBD3AC0080DFBB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

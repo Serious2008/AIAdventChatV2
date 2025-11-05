@@ -104,12 +104,18 @@ class AutoTestAgent: ObservableObject {
                 self.currentStep = "Запуск тестов..."
             }
 
+            print("📍 About to call runTests...")
             let results = try await runTests(projectPath: projectPath)
+            print("📍 runTests returned! Got results: \(results.totalPassed) passed, \(results.totalFailed) failed")
 
+            print("📍 About to update UI on MainActor...")
             await MainActor.run {
+                print("📍 Inside MainActor.run - updating UI...")
                 self.testResults = results
                 self.isRunningTests = false
+                print("📍 UI updated! testResults set, isRunningTests = false")
             }
+            print("📍 MainActor.run completed!")
 
         } catch {
             await MainActor.run {
@@ -155,13 +161,18 @@ class AutoTestAgent: ObservableObject {
             request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
+            // Use Claude 3.7 Sonnet for test generation (not router models)
+            let claudeModel = "claude-3-7-sonnet-20250219"
+
             let requestBody: [String: Any] = [
-                "model": settings.selectedModel,
+                "model": claudeModel,
                 "max_tokens": 4096,
                 "messages": [
                     ["role": "user", "content": prompt]
                 ]
             ]
+
+            print("🤖 Using model: \(claudeModel) for test generation")
 
             request.httpBody = try? JSONSerialization.data(withJSONObject: requestBody)
 
@@ -176,12 +187,20 @@ class AutoTestAgent: ObservableObject {
                     return
                 }
 
+                // Debug: print response
+                if let responseString = String(data: data, encoding: .utf8) {
+                    print("📥 Claude API Response:")
+                    print(responseString)
+                }
+
                 do {
                     let claudeResponse = try JSONDecoder().decode(ClaudeResponse.self, from: data)
                     guard let text = claudeResponse.content.first?.text else {
                         continuation.resume(throwing: NSError(domain: "AutoTestAgent", code: -1, userInfo: [NSLocalizedDescriptionKey: "No text in response"]))
                         return
                     }
+
+                    print("✅ Successfully extracted test code from Claude response")
 
                     // Clean up response - remove markdown code blocks if present
                     var cleanedCode = text
@@ -192,6 +211,10 @@ class AutoTestAgent: ObservableObject {
 
                     continuation.resume(returning: cleanedCode.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines))
                 } catch {
+                    print("❌ Failed to decode Claude response: \(error)")
+                    if let decodingError = error as? DecodingError {
+                        print("Decoding error details: \(decodingError)")
+                    }
                     continuation.resume(throwing: error)
                 }
             }
@@ -211,7 +234,8 @@ class AutoTestAgent: ObservableObject {
             "test",
             "-scheme", "AIAdventChatV2",
             "-configuration", "Debug",
-            "-destination", "platform=macOS"
+            "-destination", "platform=macOS",
+            "-enableCodeCoverage", "NO"
         ]
         process.currentDirectoryURL = URL(fileURLWithPath: projectPath)
 
@@ -220,20 +244,92 @@ class AutoTestAgent: ObservableObject {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
+        print("🚀 Starting xcodebuild test...")
+
+        // Collect output in background
+        var outputData = Data()
+        var errorData = Data()
+
+        outputPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty {
+                outputData.append(data)
+            }
+        }
+
+        errorPipe.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            if !data.isEmpty {
+                errorData.append(data)
+            }
+        }
+
         try process.run()
-        process.waitUntilExit()
 
-        let executionTime = Date().timeIntervalSince(startTime)
+        print("🔄 Process started, PID: \(process.processIdentifier)")
 
-        let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        // Poll for process completion
+        return try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global().async {
+                print("🔄 Starting polling loop...")
+                var hasResumed = false
+                let maxWaitTime: TimeInterval = 120 // 2 minutes timeout
+                let pollInterval: TimeInterval = 0.5
+                var elapsedTime: TimeInterval = 0
 
-        let output = String(data: outputData, encoding: .utf8) ?? ""
-        let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+                while process.isRunning && elapsedTime < maxWaitTime {
+                    Thread.sleep(forTimeInterval: pollInterval)
+                    elapsedTime += pollInterval
+                    if Int(elapsedTime) % 5 == 0 {
+                        print("⏱ Still running... \(Int(elapsedTime))s elapsed")
+                    }
+                }
 
-        let combinedOutput = output + "\n" + errorOutput
+                print("🛑 Process stopped running. isRunning: \(process.isRunning), elapsed: \(elapsedTime)s")
 
-        return parseTestResults(combinedOutput, executionTime: executionTime)
+                if process.isRunning {
+                    print("⏰ Test execution timeout - terminating process")
+                    process.terminate()
+                    Thread.sleep(forTimeInterval: 1) // Give it time to terminate
+                }
+
+                let executionTime = Date().timeIntervalSince(startTime)
+
+                print("✅ xcodebuild completed with exit code: \(process.terminationStatus)")
+                print("📊 Execution time: \(executionTime)s")
+
+                // Stop reading handlers
+                outputPipe.fileHandleForReading.readabilityHandler = nil
+                errorPipe.fileHandleForReading.readabilityHandler = nil
+
+                // Give a moment for final data to be captured
+                Thread.sleep(forTimeInterval: 0.2)
+
+                print("📦 Output data size: \(outputData.count) bytes")
+                print("📦 Error data size: \(errorData.count) bytes")
+
+                let output = String(data: outputData, encoding: .utf8) ?? ""
+                let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+                let combinedOutput = output + "\n" + errorOutput
+
+                print("🔍 About to parse test results...")
+                let results = self.parseTestResults(combinedOutput, executionTime: executionTime)
+                print("✅ Parsed results: \(results.totalPassed) passed, \(results.totalFailed) failed")
+                print("📊 Results object created successfully")
+
+                print("🔄 About to resume continuation...")
+                print("📊 hasResumed flag: \(hasResumed)")
+
+                if !hasResumed {
+                    hasResumed = true
+                    print("🔄 Calling continuation.resume...")
+                    continuation.resume(returning: results)
+                    print("✅ Continuation resumed!")
+                } else {
+                    print("⚠️ Already resumed, skipping")
+                }
+            }
+        }
     }
 
     // MARK: - Test Results Parsing
@@ -242,84 +338,144 @@ class AutoTestAgent: ObservableObject {
         print("📊 Parsing test results...")
         print("Output length: \(output.count) characters")
 
-        // Print last 2000 chars for debugging
-        let outputTail = String(output.suffix(2000))
-        print("📝 Test output (last 2000 chars):")
-        print(outputTail)
+        // Print full output for debugging (first 3000 and last 3000 chars)
+        print("📝 Test output (first 3000 chars):")
+        print(String(output.prefix(3000)))
+        print("\n" + String(repeating: "=", count: 80) + "\n")
+        print("📝 Test output (last 3000 chars):")
+        print(String(output.suffix(3000)))
 
         var passed = 0
         var failed = 0
         var total = 0
         var failedTests: [FailedTest] = []
 
-        // Dual approach parsing
+        // Multiple parsing strategies
 
-        // 1. Try to find summary line first
-        let summaryPattern = #"Executed (\d+) tests?, with (\d+) failures?"#
-        if let summaryRegex = try? NSRegularExpression(pattern: summaryPattern, options: []),
-           let match = summaryRegex.firstMatch(in: output, options: [], range: NSRange(output.startIndex..., in: output)) {
+        // Strategy 1: Try different summary patterns
+        let summaryPatterns = [
+            #"Executed (\d+) tests?, with (\d+) failures?"#,
+            #"Test Suite .+ finished at .+\n\s+Executed (\d+) tests?, with (\d+) failures?"#,
+            #"(\d+) tests?, (\d+) failures?"#
+        ]
 
-            if let totalRange = Range(match.range(at: 1), in: output),
-               let failedRange = Range(match.range(at: 2), in: output) {
-                total = Int(output[totalRange]) ?? 0
-                failed = Int(output[failedRange]) ?? 0
-                passed = total - failed
+        for summaryPattern in summaryPatterns {
+            if let summaryRegex = try? NSRegularExpression(pattern: summaryPattern, options: [.caseInsensitive]),
+               let match = summaryRegex.firstMatch(in: output, options: [], range: NSRange(output.startIndex..., in: output)) {
 
-                print("✅ Found summary: \(total) tests, \(failed) failures")
-            }
-        } else {
-            // 2. Fallback: count individual test results
-            print("⚠️ No summary found, counting individual tests...")
+                if let totalRange = Range(match.range(at: 1), in: output),
+                   let failedRange = Range(match.range(at: 2), in: output) {
+                    total = Int(output[totalRange]) ?? 0
+                    failed = Int(output[failedRange]) ?? 0
+                    passed = total - failed
 
-            let passedPattern = #"Test Case '.*' passed \(\d+\.\d+ seconds\)"#
-            let failedPattern = #"Test Case '.*' failed \(\d+\.\d+ seconds\)"#
-
-            if let passedRegex = try? NSRegularExpression(pattern: passedPattern, options: []) {
-                passed = passedRegex.numberOfMatches(in: output, options: [], range: NSRange(output.startIndex..., in: output))
-            }
-
-            if let failedRegex = try? NSRegularExpression(pattern: failedPattern, options: []) {
-                failed = failedRegex.numberOfMatches(in: output, options: [], range: NSRange(output.startIndex..., in: output))
-            }
-
-            total = passed + failed
-            print("✅ Counted: \(passed) passed, \(failed) failed")
-        }
-
-        // Parse failed test details
-        let failurePattern = #"(.+?):\d+: error: (.+?) : (.+?)(?:\n|$)"#
-        if let failureRegex = try? NSRegularExpression(pattern: failurePattern, options: [.dotMatchesLineSeparators]) {
-            let matches = failureRegex.matches(in: output, options: [], range: NSRange(output.startIndex..., in: output))
-
-            for match in matches {
-                if match.numberOfRanges >= 4,
-                   let fileRange = Range(match.range(at: 1), in: output),
-                   let nameRange = Range(match.range(at: 2), in: output),
-                   let reasonRange = Range(match.range(at: 3), in: output) {
-
-                    let file = String(output[fileRange])
-                    let name = String(output[nameRange])
-                    let reason = String(output[reasonRange])
-
-                    let failedTest = FailedTest(
-                        name: name,
-                        reason: reason,
-                        file: file,
-                        line: 0
-                    )
-                    failedTests.append(failedTest)
+                    print("✅ Found summary with pattern '\(summaryPattern)': \(total) tests, \(failed) failures")
+                    break
                 }
             }
         }
 
+        // Strategy 2: If no summary found, count individual test results
+        if total == 0 {
+            print("⚠️ No summary found, counting individual tests...")
+
+            let passedPatterns = [
+                #"Test case '.+' passed on '.+' \(\d+\.\d+ seconds\)"#,  // Modern Xcode format
+                #"Test Case '-\[.+\]' passed \(\d+\.\d+ seconds\)"#,
+                #"✓ .+ \(\d+\.\d+s\)"#,
+                #"Test Case '.*' passed"#,
+                #"\[PASS\]"#
+            ]
+
+            let failedPatterns = [
+                #"Test case '.+' failed on '.+' \(\d+\.\d+ seconds\)"#,  // Modern Xcode format
+                #"Test Case '-\[.+\]' failed \(\d+\.\d+ seconds\)"#,
+                #"✗ .+ \(\d+\.\d+s\)"#,
+                #"Test Case '.*' failed"#,
+                #"\[FAIL\]"#
+            ]
+
+            for (index, passedPattern) in passedPatterns.enumerated() {
+                if let passedRegex = try? NSRegularExpression(pattern: passedPattern, options: []) {
+                    let count = passedRegex.numberOfMatches(in: output, options: [], range: NSRange(output.startIndex..., in: output))
+                    if count > 0 {
+                        passed = count
+                        print("✅ Found \(passed) passed tests with pattern #\(index+1): '\(passedPattern)'")
+                        break
+                    }
+                }
+            }
+
+            for (index, failedPattern) in failedPatterns.enumerated() {
+                if let failedRegex = try? NSRegularExpression(pattern: failedPattern, options: []) {
+                    let count = failedRegex.numberOfMatches(in: output, options: [], range: NSRange(output.startIndex..., in: output))
+                    if count > 0 {
+                        failed = count
+                        print("✅ Found \(failed) failed tests with pattern #\(index+1): '\(failedPattern)'")
+                        break
+                    }
+                }
+            }
+
+            total = passed + failed
+            print("✅ Counted: \(passed) passed, \(failed) failed, \(total) total")
+        }
+
+        print("🔍 About to parse failed test details...")
+
+        // Parse failed test details - but only if we have failed tests and reasonable output size
+        if failed > 0 && output.count < 100000 {
+            print("🔍 Attempting to parse \(failed) failed test details from \(output.count) chars")
+
+            let failurePattern = #"(.+?):\d+: error: (.+?) : (.+?)(?:\n|$)"#
+            print("🔍 Created failure pattern")
+
+            if let failureRegex = try? NSRegularExpression(pattern: failurePattern, options: []) {
+                print("🔍 Created failureRegex, about to call matches()...")
+
+                let matches = failureRegex.matches(in: output, options: [], range: NSRange(output.startIndex..., in: output))
+                print("🔍 Got \(matches.count) failure matches")
+
+                for match in matches {
+                    if match.numberOfRanges >= 4,
+                       let fileRange = Range(match.range(at: 1), in: output),
+                       let nameRange = Range(match.range(at: 2), in: output),
+                       let reasonRange = Range(match.range(at: 3), in: output) {
+
+                        let file = String(output[fileRange])
+                        let name = String(output[nameRange])
+                        let reason = String(output[reasonRange])
+
+                        let failedTest = FailedTest(
+                            name: name,
+                            reason: reason,
+                            file: file,
+                            line: 0
+                        )
+                        failedTests.append(failedTest)
+                    }
+                }
+                print("🔍 Finished processing failure matches")
+            } else {
+                print("🔍 Failed to create failureRegex")
+            }
+        } else {
+            print("🔍 Skipping failed test parsing (failed=\(failed), output.count=\(output.count))")
+        }
+
+        print("🔍 About to print final results...")
         print("📊 Final results: \(passed) passed, \(failed) failed, \(total) total")
 
-        return TestResults(
+        print("🔍 Creating TestResults object...")
+        let results = TestResults(
             totalPassed: passed,
             totalFailed: failed,
             totalTests: total,
             executionTime: executionTime,
             failedTests: failedTests
         )
+        print("🔍 TestResults object created, about to return...")
+
+        return results
     }
 }
