@@ -14,6 +14,7 @@ struct ChatView: View {
     @State private var showingGeneratedDocument = false
     @State private var showingConversationList = false
     @State private var showingUserProfile = false
+    @State private var showingAutoTest = false
     @State private var enableRAG = false
 
     private var canSendMessage: Bool {
@@ -102,6 +103,19 @@ struct ChatView: View {
                     }
                     .buttonStyle(.plain)
                 }
+
+                // Auto Test Agent button
+                Button(action: {
+                    showingAutoTest = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.title2)
+                            .foregroundColor(.purple)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Auto Test Agent - генерация тестов")
 
                 // User Profile button
                 Button(action: {
@@ -416,6 +430,9 @@ struct ChatView: View {
         }
         .sheet(isPresented: $showingUserProfile) {
             UserProfileView(service: viewModel.userProfileService)
+        }
+        .sheet(isPresented: $showingAutoTest) {
+            AutoTestView(agent: AutoTestAgent(settings: settings))
         }
         .sheet(isPresented: $viewModel.showingPipelineResult) {
             if let result = viewModel.pipelineResult {
