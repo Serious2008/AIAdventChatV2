@@ -45,6 +45,8 @@ class TokenManager {
             return modelLimits["claude-3-7-sonnet-20250219"] ?? 200000
         case .huggingface:
             return modelLimits[model] ?? 8192
+        case .local:
+            return 128000 // Llama 3.2 context length
         }
     }
 

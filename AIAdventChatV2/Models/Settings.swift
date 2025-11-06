@@ -10,6 +10,7 @@ import Foundation
 enum ModelProvider: String, Codable, CaseIterable {
     case claude = "Claude"
     case huggingface = "HuggingFace"
+    case local = "LocalLLM (Ollama)"
 }
 
 enum SummarizationProvider: String, Codable, CaseIterable {
@@ -173,6 +174,8 @@ class Settings: ObservableObject {
             return !apiKey.isEmpty
         case .huggingface:
             return !huggingFaceApiKey.isEmpty
+        case .local:
+            return true // Local LLM doesn't need API key
         }
     }
 

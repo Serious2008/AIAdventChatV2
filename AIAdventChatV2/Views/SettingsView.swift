@@ -124,6 +124,38 @@ struct SettingsView: View {
                                     Text("Qwen2.5 72B (большая)").tag("Qwen/Qwen2.5-72B-Instruct")
                                 }
                                 .pickerStyle(MenuPickerStyle())
+                            } else if settings.selectedProvider == .local {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Image(systemName: "house.fill")
+                                            .foregroundColor(.green)
+                                        Text("llama3.2:3b")
+                                            .font(.body)
+                                            .fontWeight(.medium)
+                                        Spacer()
+                                        Text("2GB")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                            .font(.caption)
+                                        Text("Локальная модель - полная приватность, без затрат")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "bolt.fill")
+                                            .foregroundColor(.orange)
+                                            .font(.caption)
+                                        Text("Быстрая генерация на вашем Mac")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
                             } else {
                                 Text("claude-3-7-sonnet-20250219")
                                     .font(.caption)

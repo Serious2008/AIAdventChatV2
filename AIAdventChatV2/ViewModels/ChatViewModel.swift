@@ -62,6 +62,7 @@ class ChatViewModel: ObservableObject {
     private let huggingFaceService = HuggingFaceService()
     private let claudeService = ClaudeService()
     private let localModelService = LocalModelService()
+    private let ollamaService = OllamaService()
     private let yandexTrackerService = YandexTrackerService()
     private let periodicTaskService = PeriodicTaskService()
     private let simulatorService = SimulatorService()
@@ -170,6 +171,8 @@ class ChatViewModel: ObservableObject {
             sendToClaude(message: messageToSend)
         case .huggingface:
             sendToHuggingFace(message: messageToSend)
+        case .local:
+            sendToOllama(message: messageToSend)
         }
     }
 
@@ -208,7 +211,42 @@ class ChatViewModel: ObservableObject {
             }
         }
     }
-    
+
+    private func sendToOllama(message: String) {
+        loadingMessage = "Локальная LLM думает..."
+
+        ollamaService.generateWithMetrics(
+            model: "llama3.2:3b",
+            prompt: message,
+            temperature: settings.temperature
+        ) { [weak self] result in
+            DispatchQueue.main.async {
+                self?.isLoading = false
+
+                switch result {
+                case .success(let (response, responseTime, modelName)):
+                    let ollamaMessage = Message(
+                        content: response,
+                        isFromUser: false,
+                        temperature: self?.settings.temperature,
+                        metrics: (
+                            responseTime: responseTime,
+                            inputTokens: nil,  // Ollama doesn't provide token counts
+                            outputTokens: nil,
+                            cost: 0.0,  // Local LLM is free!
+                            modelName: "🏠 \(modelName)"
+                        )
+                    )
+                    self?.messages.append(ollamaMessage)
+
+                case .failure(let error):
+                    self?.handleError("Ошибка Ollama: \(error.localizedDescription)\n\nПроверьте, что Ollama запущен: brew services start ollama")
+                    print("Ollama error:", error)
+                }
+            }
+        }
+    }
+
     private func sendToClaude(message: String) {
         // Проверяем, нужна ли суммаризация
         if settings.summarizationEnabled && settings.isConfigured {
