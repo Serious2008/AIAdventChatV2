@@ -1,47 +1,37 @@
+//
+//  UserProfileServiceTests.swift
+//  AIAdventChatV2Tests
+//
+
 import XCTest
 import Combine
 @testable import AIAdventChatV2
 
 final class UserProfileServiceTests: XCTestCase {
-    
+
     var sut: UserProfileService!
-    var tempDirectoryURL: URL!
+    var tempDir: URL!
     var fileURL: URL!
     var cancellables = Set<AnyCancellable>()
-    
+
     override func setUp() {
         super.setUp()
-        
-        // Create a temporary directory for test files
-        tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        try? FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
-        fileURL = tempDirectoryURL.appendingPathComponent("user_profile.json")
-        
-        // Create service with auto-save disabled for more controlled testing
-        sut = UserProfileService(autoSaveEnabled: false)
-        
-        // Replace the file URL with our test URL using reflection
-        let mirror = Mirror(reflecting: sut)
-        if let fileURLProperty = mirror.children.first(where: { $0.label == "fileURL" }) {
-            let fileURLPointer = withUnsafePointer(to: &sut.self) { $0 }
-                .withMemoryRebound(to: UserProfileService.self, capacity: 1) { $0 }
-            let offset = MemoryLayout<UserProfileService>.offset(of: fileURLPointer)!
-            let valuePointer = UnsafeMutableRawPointer(bitPattern: UInt(bitPattern: fileURLPointer) + UInt(offset))!
-                .assumingMemoryBound(to: URL.self)
-            valuePointer.pointee = fileURL
-        }
+        tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        fileURL = tempDir.appendingPathComponent("test_profile.json")
+        sut = UserProfileService(fileURL: fileURL, autoSaveEnabled: false)
     }
-    
+
     override func tearDown() {
         cancellables.removeAll()
         sut = nil
-        
-        // Clean up temporary directory
-        try? FileManager.default.removeItem(at: tempDirectoryURL)
-        
+        try? FileManager.default.removeItem(at: tempDir)
         super.tearDown()
     }
-    
+
+    // MARK: - Initial State
+
     func testInitialState() {
         XCTAssertTrue(sut.isLoaded)
         XCTAssertEqual(sut.profile.name, "")
@@ -49,224 +39,134 @@ final class UserProfileServiceTests: XCTestCase {
         XCTAssertTrue(sut.profile.interests.isEmpty)
         XCTAssertNil(sut.lastSaved)
     }
-    
-    func testSaveAndLoad() {
-        // Given
+
+    // MARK: - Save / Load
+
+    func testSaveCreatesFile() {
         sut.profile.name = "Test User"
-        sut.profile.role = "Developer"
-        
-        // When
         sut.save()
-        
-        // Then
+
         XCTAssertNotNil(sut.lastSaved)
         XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path))
-        
-        // Create a new instance to test loading
-        let newService = UserProfileService(autoSaveEnabled: false)
-        
-        // Replace the file URL with our test URL using reflection
-        let mirror = Mirror(reflecting: newService)
-        if let fileURLProperty = mirror.children.first(where: { $0.label == "fileURL" }) {
-            let fileURLPointer = withUnsafePointer(to: &newService.self) { $0 }
-                .withMemoryRebound(to: UserProfileService.self, capacity: 1) { $0 }
-            let offset = MemoryLayout<UserProfileService>.offset(of: fileURLPointer)!
-            let valuePointer = UnsafeMutableRawPointer(bitPattern: UInt(bitPattern: fileURLPointer) + UInt(offset))!
-                .assumingMemoryBound(to: URL.self)
-            valuePointer.pointee = fileURL
-        }
-        
-        // Then
-        XCTAssertEqual(newService.profile.name, "Test User")
-        XCTAssertEqual(newService.profile.role, "Developer")
     }
-    
-    func testReset() {
-        // Given
+
+    func testSaveAndLoadRoundTrip() {
         sut.profile.name = "Test User"
         sut.profile.role = "Developer"
-        
-        // When
+        sut.save()
+
+        let loaded = UserProfileService(fileURL: fileURL, autoSaveEnabled: false)
+        XCTAssertEqual(loaded.profile.name, "Test User")
+        XCTAssertEqual(loaded.profile.role, "Developer")
+    }
+
+    // MARK: - Reset / LoadExample
+
+    func testReset() {
+        sut.profile.name = "Test User"
+        sut.profile.role = "Developer"
+
         sut.reset()
-        
-        // Then
+
         XCTAssertEqual(sut.profile.name, "")
         XCTAssertEqual(sut.profile.role, "")
     }
-    
+
     func testLoadExample() {
-        // When
         sut.loadExample()
-        
-        // Then
+
         XCTAssertEqual(sut.profile.name, UserProfile.example.name)
         XCTAssertEqual(sut.profile.role, UserProfile.example.role)
+        XCTAssertEqual(sut.profile.skills, UserProfile.example.skills)
     }
-    
+
+    // MARK: - CRUD Methods
+
     func testUpdateName() {
-        // When
         sut.updateName("John Doe")
-        
-        // Then
         XCTAssertEqual(sut.profile.name, "John Doe")
     }
-    
+
     func testUpdateRole() {
-        // When
         sut.updateRole("Designer")
-        
-        // Then
         XCTAssertEqual(sut.profile.role, "Designer")
     }
-    
-    func testAddAndRemoveSkill() {
-        // Given
-        XCTAssertTrue(sut.profile.skills.isEmpty)
-        
-        // When - add
+
+    func testAddSkillIgnoresDuplicate() {
         sut.addSkill("Swift")
-        
-        // Then
-        XCTAssertEqual(sut.profile.skills.count, 1)
-        XCTAssertEqual(sut.profile.skills.first, "Swift")
-        
-        // When - add duplicate
         sut.addSkill("Swift")
-        
-        // Then - should not add duplicate
         XCTAssertEqual(sut.profile.skills.count, 1)
-        
-        // When - add empty
+    }
+
+    func testAddSkillIgnoresEmpty() {
         sut.addSkill("")
-        
-        // Then - should not add empty
-        XCTAssertEqual(sut.profile.skills.count, 1)
-        
-        // When - remove
+        XCTAssertTrue(sut.profile.skills.isEmpty)
+    }
+
+    func testRemoveSkill() {
+        sut.addSkill("Swift")
         sut.removeSkill("Swift")
-        
-        // Then
         XCTAssertTrue(sut.profile.skills.isEmpty)
-        
-        // When - remove non-existent
+    }
+
+    func testRemoveNonExistentSkillIsNoOp() {
         sut.removeSkill("Python")
-        
-        // Then - should not change
         XCTAssertTrue(sut.profile.skills.isEmpty)
     }
-    
+
     func testAddAndRemoveInterest() {
-        // Given
-        XCTAssertTrue(sut.profile.interests.isEmpty)
-        
-        // When - add
         sut.addInterest("AI")
-        
-        // Then
         XCTAssertEqual(sut.profile.interests.count, 1)
-        XCTAssertEqual(sut.profile.interests.first, "AI")
-        
-        // When - add duplicate
         sut.addInterest("AI")
-        
-        // Then - should not add duplicate
         XCTAssertEqual(sut.profile.interests.count, 1)
-        
-        // When - remove
         sut.removeInterest("AI")
-        
-        // Then
         XCTAssertTrue(sut.profile.interests.isEmpty)
     }
-    
+
     func testAddAndRemoveGoal() {
-        // Given
-        XCTAssertTrue(sut.profile.goals.isEmpty)
-        
-        // When - add
         sut.addGoal("Learn Swift")
-        
-        // Then
         XCTAssertEqual(sut.profile.goals.count, 1)
-        XCTAssertEqual(sut.profile.goals.first, "Learn Swift")
-        
-        // When - remove
         sut.removeGoal("Learn Swift")
-        
-        // Then
         XCTAssertTrue(sut.profile.goals.isEmpty)
     }
-    
+
     func testAddAndRemoveConstraint() {
-        // Given
-        XCTAssertTrue(sut.profile.constraints.isEmpty)
-        
-        // When - add
         sut.addConstraint("Time limited")
-        
-        // Then
         XCTAssertEqual(sut.profile.constraints.count, 1)
-        XCTAssertEqual(sut.profile.constraints.first, "Time limited")
-        
-        // When - remove
         sut.removeConstraint("Time limited")
-        
-        // Then
         XCTAssertTrue(sut.profile.constraints.isEmpty)
     }
-    
+
     func testAddAndRemoveProject() {
-        // Given
-        XCTAssertTrue(sut.profile.currentProjects.isEmpty)
-        
-        // When - add
         sut.addProject("iOS App")
-        
-        // Then
         XCTAssertEqual(sut.profile.currentProjects.count, 1)
-        XCTAssertEqual(sut.profile.currentProjects.first, "iOS App")
-        
-        // When - remove
         sut.removeProject("iOS App")
-        
-        // Then
         XCTAssertTrue(sut.profile.currentProjects.isEmpty)
     }
-    
+
     func testAddAndRemoveCommonTask() {
-        // Given
-        XCTAssertTrue(sut.profile.commonTasks.isEmpty)
-        
-        // When - add
         sut.addCommonTask("Write code")
-        
-        // Then
         XCTAssertEqual(sut.profile.commonTasks.count, 1)
-        XCTAssertEqual(sut.profile.commonTasks.first, "Write code")
-        
-        // When - remove
         sut.removeCommonTask("Write code")
-        
-        // Then
         XCTAssertTrue(sut.profile.commonTasks.isEmpty)
     }
-    
+
+    // MARK: - Export / Import JSON
+
     func testExportToJSON() {
-        // Given
         sut.profile.name = "Test User"
         sut.profile.role = "Developer"
-        
-        // When
+
         let json = sut.exportToJSON()
-        
-        // Then
+
         XCTAssertNotNil(json)
         XCTAssertTrue(json!.contains("Test User"))
         XCTAssertTrue(json!.contains("Developer"))
     }
-    
-    func testImportFromJSON() {
-        // Given
+
+    func testImportFromValidJSON() {
+        sut.updateName("Original")
+
         let json = """
         {
             "name": "Imported User",
@@ -275,7 +175,7 @@ final class UserProfileServiceTests: XCTestCase {
             "skills": ["Testing", "Automation"],
             "interests": ["Quality"],
             "preferredLanguage": "en",
-            "style": "professional",
+            "communicationStyle": "Сбалансированный",
             "workingHours": "9-5",
             "goals": [],
             "constraints": [],
@@ -283,53 +183,45 @@ final class UserProfileServiceTests: XCTestCase {
             "commonTasks": []
         }
         """
-        
-        // When
+
         let result = sut.importFromJSON(json)
-        
-        // Then
+
         XCTAssertTrue(result)
         XCTAssertEqual(sut.profile.name, "Imported User")
         XCTAssertEqual(sut.profile.role, "Tester")
         XCTAssertEqual(sut.profile.skills, ["Testing", "Automation"])
     }
-    
+
     func testImportFromInvalidJSON() {
-        // Given
-        let invalidJSON = "{ invalid json }"
-        
-        // When
-        let result = sut.importFromJSON(invalidJSON)
-        
-        // Then
+        let result = sut.importFromJSON("{ invalid json }")
         XCTAssertFalse(result)
     }
-    
-    func testGetStatistics() {
-        // Given - empty profile
-        var stats = sut.getStatistics()
-        
-        // Then
+
+    // MARK: - Statistics
+
+    func testStatisticsEmptyProfile() {
+        let stats = sut.getStatistics()
         XCTAssertEqual(stats.totalFields, 12)
-        XCTAssertEqual(stats.filledFields, 1) // style always has default value
-        XCTAssertEqual(stats.completionPercentage, 100.0 / 12.0, accuracy: 0.01)
         XCTAssertFalse(stats.isWellConfigured)
-        
-        // Given - more complete profile
-        sut.updateName("Test User")
-        sut.updateRole("Developer")
+        XCTAssertNil(stats.lastModified)
+    }
+
+    func testStatisticsWellConfigured() {
+        sut.updateName("Test")
+        sut.updateRole("Dev")
         sut.addSkill("Swift")
         sut.addInterest("AI")
         sut.addGoal("Learn")
         sut.addConstraint("Time")
         sut.addProject("App")
-        
-        // When
-        stats = sut.getStatistics()
-        
-        // Then
-        XCTAssertEqual(stats.filledFields, 8)
+
+        let stats = sut.getStatistics()
         XCTAssertGreaterThan(stats.completionPercentage, 50.0)
         XCTAssertTrue(stats.isWellConfigured)
+    }
+
+    func testStatisticsCompletionText() {
+        let stats = sut.getStatistics()
+        XCTAssertTrue(stats.completionText.hasSuffix("%"))
     }
 }

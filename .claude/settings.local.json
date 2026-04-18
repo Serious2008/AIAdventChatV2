@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(python3 *)",
+      "Bash(./ax_click *)",
+      "Bash(./ax_find *)",
+      "Bash(ax_click *)",
+      "Bash(ax_find *)",
+      "Bash(xcodebuild *)",
+      "Bash(open *)",
+      "Bash(cliclick *)",
+      "Bash(osascript *)",
+      "Bash(screencapture *)",
+      "Bash(pbcopy *)",
+      "Bash(pbpaste *)",
+      "Bash(chmod +x *)"
     ]
   },
   "model": "sonnet",

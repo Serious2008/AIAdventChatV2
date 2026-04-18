@@ -31,7 +31,8 @@ from datetime import datetime
 APP_NAME = "AIAdventChatV2"
 SCREENSHOT_DIR = "/tmp/cu_screenshots"
 SCREENSHOT_PATH = "/tmp/cu_screenshot.png"
-MAX_ITERATIONS = 30
+MAX_ITERATIONS = 15
+MAX_SCREENSHOTS_IN_HISTORY = 3
 STEP_DELAY = 1.0
 
 MODEL = "claude-sonnet-4-6"
@@ -83,20 +84,24 @@ Smoke-тест #2: Отправка сообщения.
     3: {
         "name": "Change Settings — изменение настроек температуры",
         "task": """
-Smoke-тест #3: Изменение настроек.
+Smoke-тест #3: Изменение настроек температуры.
 
 Предусловие: приложение AIAdventChatV2 открыто.
 
+ВАЖНО: используй bash-команды ax_click и ax_find для взаимодействия с элементами — они точнее, чем computer left_click.
+
 Шаги:
-1. Найди и нажми кнопку/иконку «Настройки» (шестерёнка или gear icon) в правом верхнем углу.
-2. Сделай скриншот — должна открыться панель настроек.
-3. Найди слайдер Temperature (Температура).
-4. Запомни текущее положение слайдера.
-5. Перетащи слайдер вправо чтобы увеличить значение (или используй клик по более правой позиции).
-6. Сделай скриншот чтобы подтвердить изменение.
-7. Закрой панель настроек (кнопка закрытия или клик вне панели).
-8. Снова открой настройки и проверь что значение сохранилось.
-9. Сообщи PASSED если изменение сохранилось, FAILED если нет.
+1. Открой настройки: bash → ax_click btn_settings
+2. Сделай скриншот — убедись что панель настроек открылась.
+3. Запомни текущее значение Temperature (кнопка подсвечена синим: 0.0, 0.7, 1.0 или 1.2).
+4. Нажми кнопку с другим значением: bash → ax_click btn_temp_10
+   (если уже 1.0 — нажми ax_click btn_temp_07)
+5. Сделай скриншот — убедись что новая кнопка подсвечена синим.
+6. Закрой настройки: bash → ax_click btn_settings_done
+7. Снова открой настройки: bash → ax_click btn_settings
+8. Сделай скриншот — проверь что значение Temperature сохранилось (та же кнопка синяя).
+9. Закрой настройки: bash → ax_click btn_settings_done
+10. Сообщи PASSED если изменение сохранилось, FAILED если нет.
 
 Критерий прохождения: настройка Temperature изменилась и сохранилась после переоткрытия.
 """
@@ -184,11 +189,20 @@ def mouse_scroll(x: int, y: int, direction: str, amount: int = 3):
 
 
 def type_text(text: str):
-    escaped = text.replace('"', '\\"').replace("\\", "\\\\")
-    subprocess.run([
-        "osascript", "-e",
-        f'tell application "System Events" to keystroke "{escaped}"'
-    ])
+    if all(ord(c) < 128 for c in text):
+        escaped = text.replace('"', '\\"').replace("\\", "\\\\")
+        subprocess.run([
+            "osascript", "-e",
+            f'tell application "System Events" to keystroke "{escaped}"'
+        ])
+    else:
+        # Non-ASCII (кириллица и др.) — через буфер обмена
+        subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+        time.sleep(0.2)
+        subprocess.run([
+            "osascript", "-e",
+            'tell application "System Events" to keystroke "v" using {command down}'
+        ])
     time.sleep(0.2)
 
 
@@ -276,11 +290,93 @@ def execute_tool(tool_name: str, tool_input: dict) -> str:
 
     elif tool_name == "bash":
         cmd = tool_input.get("command", "")
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+
+        # ax_find:<id> — найти элемент по AXIdentifier, вернуть логические координаты
+        if cmd.startswith("ax_find:"):
+            identifier = cmd[len("ax_find:"):].strip()
+            coords = find_element_coords(identifier)
+            if coords:
+                return (f"AXIdentifier '{identifier}' найден в логических координатах: "
+                        f"x={coords[0]}, y={coords[1]}. "
+                        f"Используй ax_click:{identifier} чтобы кликнуть по нему.")
+            else:
+                return f"AXIdentifier '{identifier}' не найден"
+
+        # ax_click:<id> — найти и кликнуть по элементу напрямую через cliclick (логические координаты)
+        if cmd.startswith("ax_click:"):
+            identifier = cmd[len("ax_click:"):].strip()
+            coords = find_element_coords(identifier)
+            if coords:
+                subprocess.run(["cliclick", f"c:{coords[0]},{coords[1]}"])
+                time.sleep(0.5)
+                return f"Клик по '{identifier}' в логических координатах ({coords[0]}, {coords[1]}) выполнен."
+            else:
+                return f"Элемент '{identifier}' не найден — не удалось кликнуть."
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        env = os.environ.copy()
+        env["PATH"] = script_dir + ":" + env.get("PATH", "")
+        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30, env=env)
         output = result.stdout + result.stderr
         return output[:2000] if output else "(нет вывода)"
 
     return f"Неизвестный инструмент: {tool_name}"
+
+
+# ── Вспомогательные функции ───────────────────────────────────────────────────
+
+def prune_image_history(messages: list) -> list:
+    """Удаляет старые скриншоты из истории, оставляя последние MAX_SCREENSHOTS_IN_HISTORY."""
+    image_locations = []  # (msg_idx, content_idx)
+    for i, msg in enumerate(messages):
+        if msg["role"] == "user" and isinstance(msg["content"], list):
+            for j, block in enumerate(msg["content"]):
+                if (isinstance(block, dict) and
+                        block.get("type") == "tool_result" and
+                        isinstance(block.get("content"), list)):
+                    for item in block["content"]:
+                        if isinstance(item, dict) and item.get("type") == "image":
+                            image_locations.append((i, j))
+
+    to_drop = image_locations[:-MAX_SCREENSHOTS_IN_HISTORY]
+    for (mi, ci) in to_drop:
+        messages[mi]["content"][ci]["content"] = "[скриншот удалён из истории]"
+    return messages
+
+
+def find_element_coords(identifier: str):
+    """Ищет UI-элемент по AXIdentifier во всех окнах/sheets и возвращает (x, y) или None."""
+    script = f'''
+tell application "System Events"
+    tell process "{APP_NAME}"
+        set allWindows to every window
+        repeat with w in allWindows
+            set allEl to entire contents of w
+            repeat with el in allEl
+                try
+                    if value of attribute "AXIdentifier" of el is "{identifier}" then
+                        set pos to position of el
+                        set sz to size of el
+                        set cx to (item 1 of pos) + (item 1 of sz) / 2.0
+                        set cy to (item 2 of pos) + (item 2 of sz) / 2.0
+                        return (round cx) & "," & (round cy)
+                    end if
+                end try
+            end repeat
+        end repeat
+        return ""
+    end tell
+end tell
+'''
+    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=15)
+    output = result.stdout.strip()
+    if not output:
+        return None
+    try:
+        x, y = output.split(",")
+        return int(x.strip()), int(y.strip())
+    except Exception:
+        return None
 
 
 # ── Основной цикл агента ──────────────────────────────────────────────────────
@@ -328,6 +424,8 @@ def run_agent(task: str, api_key: str, label: str = "Задача") -> bool:
     for iteration in range(MAX_ITERATIONS):
         print(f"[Итерация {iteration + 1}/{MAX_ITERATIONS}]")
 
+        messages = prune_image_history(messages)
+
         response = client.beta.messages.create(
             model=MODEL,
             max_tokens=4096,
@@ -335,11 +433,34 @@ def run_agent(task: str, api_key: str, label: str = "Задача") -> bool:
             messages=messages,
             betas=["computer-use-2025-11-24"],
             system=(
-                "Ты QA-агент, который тестирует macOS приложение AIAdventChatV2. "
+                f"Ты QA-агент, который тестирует macOS приложение {APP_NAME}. "
                 "Используй computer tool для взаимодействия с UI. "
                 "Делай скриншот после каждого действия чтобы видеть результат. "
-                "Координаты кликов должны точно попадать в UI элементы. "
                 f"Разрешение экрана: {SCREEN_WIDTH}x{SCREEN_HEIGHT}. "
+                "\n\n"
+                "ВАЖНО — поиск и клик по UI-элементам:\n"
+                "Ключевые элементы приложения имеют AXIdentifier. "
+                "В PATH доступны две утилиты: ax_click и ax_find.\n"
+                "ВСЕГДА используй bash с командой 'ax_click <identifier>' вместо computer left_click "
+                "— это точный клик по логическим координатам, без ошибок масштаба Retina.\n"
+                "Примеры:\n"
+                "  ax_click btn_settings      — открыть настройки (шестерёнка)\n"
+                "  ax_click btn_user_profile  — открыть профиль пользователя\n"
+                "  ax_click btn_send          — кнопка отправки сообщения\n"
+                "  ax_click input_message     — фокус на поле ввода сообщения\n"
+                "  ax_click slider_temperature — слайдер температуры\n"
+                "  ax_click btn_temp_00       — кнопка Temperature 0.0\n"
+                "  ax_click btn_temp_07       — кнопка Temperature 0.7\n"
+                "  ax_click btn_temp_10       — кнопка Temperature 1.0\n"
+                "  ax_click btn_temp_12       — кнопка Temperature 1.2\n"
+                "  ax_click btn_settings_done — закрыть панель настроек (кнопка Готово)\n"
+                "  ax_click btn_toolbar_menu  — меню тулбара (⋯)\n"
+                "  ax_click btn_clear_chat    — очистить чат\n"
+                "  ax_find <identifier>       — найти элемент и показать координаты\n"
+                "\n\n"
+                "ВАЖНО — ввод текста:\n"
+                "Для ввода кириллицы используй action type — скрипт автоматически применит pbcopy+paste.\n"
+                "\n\n"
                 "В конце выведи ОДИН из двух итогов: PASSED или FAILED, "
                 "затем краткое объяснение что было проверено и что пошло не так (если FAILED)."
             ),

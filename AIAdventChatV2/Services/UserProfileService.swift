@@ -57,6 +57,22 @@ class UserProfileService: ObservableObject {
         }
     }
 
+    /// Инициализатор для unit-тестов — позволяет подменить путь к файлу.
+    internal init(fileURL: URL, autoSaveEnabled: Bool = false) {
+        self.autoSaveEnabled = autoSaveEnabled
+        self.fileURL = fileURL
+
+        let dir = fileURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        if let loaded = Self.load(from: fileURL) {
+            self.profile = loaded
+        } else {
+            self.profile = UserProfile.empty
+        }
+        self.isLoaded = true
+    }
+
     // MARK: - Load
 
     private static func load(from url: URL) -> UserProfile? {

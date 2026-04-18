@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""Find UI element by AXIdentifier. Usage: ax_find <identifier>"""
+import subprocess, sys
+
+APP_NAME = "AIAdventChatV2"
+identifier = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
+
+script = f'''
+tell application "System Events"
+    tell process "{APP_NAME}"
+        set allWindows to every window
+        repeat with w in allWindows
+            set allEl to entire contents of w
+            repeat with el in allEl
+                try
+                    if value of attribute "AXIdentifier" of el is "{identifier}" then
+                        set pos to position of el
+                        set sz to size of el
+                        set px to (item 1 of pos) as integer
+                        set py to (item 2 of pos) as integer
+                        set sw to (item 1 of sz) as integer
+                        set sh to (item 2 of sz) as integer
+                        set cx to px + sw / 2
+                        set cy to py + sh / 2
+                        return (cx as integer) as string & " " & (cy as integer) as string
+                    end if
+                end try
+            end repeat
+        end repeat
+        return ""
+    end tell
+end tell
+'''
+result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=15)
+output = result.stdout.strip()
+if not output:
+    print(f"Element '{identifier}' not found")
+else:
+    parts = output.split()
+    x, y = int(parts[0]), int(parts[1])
+    print(f"Found '{identifier}' at ({x}, {y}). Use: ax_click {identifier}")

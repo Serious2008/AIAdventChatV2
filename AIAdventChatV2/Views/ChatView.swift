@@ -139,6 +139,7 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Мой профиль")
+                .accessibilityIdentifier("btn_user_profile")
 
                 Button(action: {
                     showingSettings = true
@@ -148,6 +149,7 @@ struct ChatView: View {
                         .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("btn_settings")
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
@@ -331,6 +333,7 @@ struct ChatView: View {
                 TextField("Введите сообщение...", text: $viewModel.currentMessage, axis: .vertical)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .lineLimit(1...10)
+                    .accessibilityIdentifier("input_message")
                     .onSubmit {
                         if canSendMessage {
                             if enableRAG {
@@ -372,6 +375,7 @@ struct ChatView: View {
                 .buttonStyle(.plain)
                 .disabled(!canSendMessage)
                 .keyboardShortcut(.return, modifiers: [])
+                .accessibilityIdentifier("btn_send")
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
@@ -466,12 +470,14 @@ struct ChatView: View {
                     Button("Очистить чат") {
                         viewModel.clearChat()
                     }
+                    .accessibilityIdentifier("btn_clear_chat")
                     Button("Настройки") {
                         showingSettings = true
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityIdentifier("btn_toolbar_menu")
             }
         }
     }

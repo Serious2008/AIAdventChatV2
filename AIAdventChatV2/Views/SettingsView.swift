@@ -19,6 +19,16 @@ struct SettingsView: View {
         NavigationView {
             ScrollView {
                 VStack(spacing: 20) {
+                    // Кнопка закрытия (для automation и удобства)
+                    HStack {
+                        Spacer()
+                        Button("Закрыть") { dismiss() }
+                            .buttonStyle(.borderedProminent)
+                            .accessibilityIdentifier("btn_settings_done")
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
                     // API Настройки секция
                     VStack(alignment: .leading, spacing: 16) {
                         Text("API Настройки")
@@ -37,6 +47,7 @@ struct SettingsView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 Slider(value: $settings.temperature, in: 0.0...1.2, step: 0.1)
+                                    .accessibilityIdentifier("slider_temperature")
                                 Text("1.2")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
@@ -60,6 +71,7 @@ struct SettingsView: View {
                                         .background(settings.temperature == 0.0 ? Color.blue : Color.gray.opacity(0.2))
                                         .foregroundColor(settings.temperature == 0.0 ? .white : .primary)
                                         .cornerRadius(4)
+                                        .accessibilityIdentifier("btn_temp_00")
 
                                     Button("0.7") { settings.temperature = 0.7 }
                                         .font(.caption2)
@@ -68,6 +80,7 @@ struct SettingsView: View {
                                         .background(settings.temperature == 0.7 ? Color.blue : Color.gray.opacity(0.2))
                                         .foregroundColor(settings.temperature == 0.7 ? .white : .primary)
                                         .cornerRadius(4)
+                                        .accessibilityIdentifier("btn_temp_07")
 
                                     Button("1.0") { settings.temperature = 1.0 }
                                         .font(.caption2)
@@ -76,6 +89,7 @@ struct SettingsView: View {
                                         .background(settings.temperature == 1.0 ? Color.blue : Color.gray.opacity(0.2))
                                         .foregroundColor(settings.temperature == 1.0 ? .white : .primary)
                                         .cornerRadius(4)
+                                        .accessibilityIdentifier("btn_temp_10")
 
                                     Button("1.2") { settings.temperature = 1.2 }
                                         .font(.caption2)
@@ -84,6 +98,7 @@ struct SettingsView: View {
                                         .background(settings.temperature == 1.2 ? Color.blue : Color.gray.opacity(0.2))
                                         .foregroundColor(settings.temperature == 1.2 ? .white : .primary)
                                         .cornerRadius(4)
+                                        .accessibilityIdentifier("btn_temp_12")
                                 }
                             }
                         }
@@ -968,6 +983,7 @@ struct SettingsView: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
+                    .accessibilityIdentifier("btn_settings_done")
                 }
             }
         }
