@@ -336,66 +336,113 @@ class ChatViewModel: ObservableObject {
 
 **Принципы:**
 - Composition over inheritance
-- Извлекать переиспользуемые компоненты
+- **Каждый логический UI-блок — отдельная структура в отдельном файле**
 - `@ObservedObject` для ViewModels
 - `@State` для локального состояния
 - `@Environment` для системных параметров
 
-**Структура:**
+#### 4.1 Декомпозиция на отдельные файлы (ОБЯЗАТЕЛЬНО)
+
+**Правило:** Любой UI-компонент размером >20 строк кода или переиспользуемый в >1 месте **ДОЛЖЕН** быть вынесен в отдельный файл в папке `Views/`.
+
+**Структура файлов для сложного экрана:**
+```
+Views/
+├── ChatView.swift              # Только компоновка (body < 20 строк)
+├── ChatHeaderView.swift        # Шапка чата
+├── ChatInputBarView.swift      # Поле ввода
+├── MessageBubble.swift         # Пузырь сообщения
+├── MessageListView.swift       # Список сообщений
+└── Components/                 # Мелкие переиспользуемые компоненты
+    ├── SendButton.swift
+    ├── TypingIndicator.swift
+    └── EmptyStateView.swift
+```
+
+**Главный экран — только компоновка:**
 ```swift
+// ChatView.swift — ТОЛЬКО компоновка, ноль UI-кода
 struct ChatView: View {
-    // MARK: - Dependencies
     @ObservedObject var viewModel: ChatViewModel
     @ObservedObject var settings: Settings
 
-    // MARK: - State
-    @State private var showingSettings = false
-    @State private var showingGeneratedDocument = false
-    @Environment(\.dismiss) private var dismiss
-
-    // MARK: - Computed Properties
-    private var canSendMessage: Bool {
-        !viewModel.currentMessage.isEmpty && !viewModel.isLoading
-    }
-
-    // MARK: - Body
     var body: some View {
         VStack(spacing: 0) {
-            headerView
-            messagesList
-            inputBar
-        }
-    }
-
-    // MARK: - View Components
-    private var headerView: some View {
-        HStack {
-            Text(viewModel.conversationTitle)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            Spacer()
-            settingsButton
-        }
-    }
-
-    private var settingsButton: some View {
-        Button(action: { showingSettings = true }) {
-            Image(systemName: "gearshape.fill")
+            ChatHeaderView(viewModel: viewModel)
+            MessageListView(messages: viewModel.messages)
+            ChatInputBarView(viewModel: viewModel)
         }
     }
 }
 ```
 
+**Каждый компонент — отдельный файл:**
+```swift
+// ChatHeaderView.swift
+struct ChatHeaderView: View {
+    @ObservedObject var viewModel: ChatViewModel
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(viewModel.conversationTitle)
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                Text("\(viewModel.messages.count) сообщений")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            SettingsButton()
+        }
+        .padding()
+    }
+}
+```
+
+```swift
+// ChatInputBarView.swift
+struct ChatInputBarView: View {
+    @ObservedObject var viewModel: ChatViewModel
+    @State private var isRecording = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField("Сообщение...", text: $viewModel.currentMessage)
+                .textFieldStyle(.roundedBorder)
+            SendButton(isEnabled: !viewModel.currentMessage.isEmpty) {
+                viewModel.sendMessage()
+            }
+        }
+        .padding()
+    }
+}
+```
+
 **✅ Правильно:**
-- Разбивать body на computed properties
-- Использовать `private` для внутренних компонентов
-- Извлекать сложную логику в отдельные Views
-- Использовать `.help()` для tooltips
+- Каждый крупный UI-блок — отдельный `.swift` файл в `Views/`
+- `body` главного экрана содержит только встраивание дочерних компонентов
+- Переиспользуемые элементы (кнопки, индикаторы) — в `Views/Components/`
+- Каждый компонент получает только нужные ему данные через параметры
+- `@State` хранится только в том компоненте, которому он принадлежит
+- Добавлять `#Preview` к каждому компоненту
 
 **❌ Неправильно:**
+- Писать 100+ строк UI-кода в одном файле
+- Создавать вложенные struct внутри основного View файла
+- Хранить весь UI экрана в одной структуре
 - Создавать бизнес-логику в Views
-- Большие вложенные структуры в body
 - Прямые обращения к сервисам (через ViewModel)
+
+#### 4.2 Правило разбиения (когда выносить в отдельный файл)
+
+| Условие | Действие |
+|---|---|
+| Компонент > 20 строк | Отдельный файл |
+| Используется в 2+ местах | Отдельный файл в `Components/` |
+| Имеет свой `@State` | Отдельный файл |
+| Сложная логика отображения | Отдельный файл |
+| `body` > 15 строк | Разбить на подкомпоненты |
 
 ---
 
@@ -907,39 +954,42 @@ class SomeService {
 
 ---
 
-### 8. ❌ Большие вложенные структуры в SwiftUI body
+### 8. ❌ Весь UI экрана в одном файле
 ```swift
-// ПЛОХО
-var body: some View {
-    VStack {
-        HStack {
-            VStack {
-                Text("...")
-                HStack {
-                    // 50 строк кода...
-                }
+// ПЛОХО — 200 строк в одном файле
+// ChatView.swift
+struct ChatView: View {
+    var body: some View {
+        VStack {
+            HStack {
+                // 40 строк шапки...
+            }
+            ScrollView {
+                // 60 строк списка сообщений...
+            }
+            HStack {
+                // 50 строк поля ввода...
             }
         }
     }
 }
 
-// ХОРОШО
-var body: some View {
-    VStack {
-        headerView
-        contentView
-        footerView
-    }
-}
+// ХОРОШО — каждый блок в своём файле
+// ChatView.swift — только компоновка
+struct ChatView: View {
+    @ObservedObject var viewModel: ChatViewModel
 
-private var headerView: some View {
-    HStack {
-        Text("...")
+    var body: some View {
+        VStack(spacing: 0) {
+            ChatHeaderView(viewModel: viewModel)       // ChatHeaderView.swift
+            MessageListView(messages: viewModel.messages)  // MessageListView.swift
+            ChatInputBarView(viewModel: viewModel)     // ChatInputBarView.swift
+        }
     }
 }
 ```
 
-**Правило:** Максимум 2-3 уровня вложенности, остальное выносить в computed properties
+**Правило:** `body` главного экрана — только встраивание дочерних компонентов. Каждый крупный UI-блок — отдельный файл. Максимум 2-3 уровня вложенности в одном файле.
 
 ---
 
@@ -1031,10 +1081,10 @@ struct MyModel: Identifiable, Codable, Equatable {
 
 ---
 
-### Для View:
+### Для View (главный экран — только компоновка):
 ```swift
 //
-//  MyView.swift
+//  MyFeatureView.swift
 //  AIAdventChatV2
 //
 //  Created by Sergey Markov on DD.MM.YYYY.
@@ -1042,41 +1092,68 @@ struct MyModel: Identifiable, Codable, Equatable {
 
 import SwiftUI
 
-struct MyView: View {
+// Главный экран: ТОЛЬКО компоновка дочерних компонентов
+struct MyFeatureView: View {
     // MARK: - Dependencies
 
-    @ObservedObject var viewModel: MyViewModel
+    @ObservedObject var viewModel: MyFeatureViewModel
 
     // MARK: - State
 
-    @State private var isShowing = false
+    @State private var isShowingDetail = false
     @Environment(\.dismiss) private var dismiss
 
     // MARK: - Body
 
     var body: some View {
-        VStack {
-            headerView
-            contentView
+        VStack(spacing: 0) {
+            MyFeatureHeaderView(title: viewModel.title)         // MyFeatureHeaderView.swift
+            MyFeatureContentView(items: viewModel.items)        // MyFeatureContentView.swift
+            MyFeatureFooterView(onAction: viewModel.doAction)   // MyFeatureFooterView.swift
         }
-    }
-
-    // MARK: - View Components
-
-    private var headerView: some View {
-        Text("Header")
-            .font(.title)
-    }
-
-    private var contentView: some View {
-        Text("Content")
     }
 }
 
 // MARK: - Preview
 
 #Preview {
-    MyView(viewModel: MyViewModel())
+    MyFeatureView(viewModel: MyFeatureViewModel())
+}
+```
+
+### Для View (дочерний компонент):
+```swift
+//
+//  MyFeatureHeaderView.swift
+//  AIAdventChatV2
+//
+//  Created by Sergey Markov on DD.MM.YYYY.
+//
+
+import SwiftUI
+
+struct MyFeatureHeaderView: View {
+    // MARK: - Properties
+
+    let title: String
+
+    // MARK: - Body
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .font(.title)
+                .fontWeight(.bold)
+            Spacer()
+        }
+        .padding()
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    MyFeatureHeaderView(title: "Preview Title")
 }
 ```
 
