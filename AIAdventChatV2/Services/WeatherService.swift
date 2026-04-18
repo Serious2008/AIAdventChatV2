@@ -48,15 +48,13 @@ class WeatherService {
                 completion(.failure(error))
                 return
             }
-
             guard let data = data else {
                 completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
                 return
             }
-
             do {
                 let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
-                completion(.success(weatherData))
+                DispatchQueue.main.async { completion(.success(weatherData)) }
             } catch {
                 completion(.failure(error))
             }
