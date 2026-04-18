@@ -17,6 +17,87 @@ struct ChatView: View {
     @State private var showingAutoTest = false
     @State private var enableRAG = false
 
+    // MARK: - Weather State
+    @State private var currentWeather: WeatherData? = nil
+    @State private var isLoadingWeather = false
+    private let weatherService = WeatherService()
+    private let weatherCity = "Moscow"
+
+    // MARK: - Weather
+
+    private func weatherIcon(for condition: String) -> String {
+        switch condition {
+        case "Clear":        return "sun.max.fill"
+        case "Clouds":       return "cloud.fill"
+        case "Rain":         return "cloud.rain.fill"
+        case "Drizzle":      return "cloud.drizzle.fill"
+        case "Thunderstorm": return "cloud.bolt.fill"
+        case "Snow":         return "snowflake"
+        case "Mist", "Fog", "Haze": return "cloud.fog.fill"
+        default:             return "cloud.fill"
+        }
+    }
+
+    private func weatherIconColor(for condition: String) -> Color {
+        switch condition {
+        case "Clear":        return .yellow
+        case "Rain", "Drizzle", "Thunderstorm": return .blue
+        case "Snow":         return .cyan
+        default:             return .gray
+        }
+    }
+
+    private func loadWeather() {
+        isLoadingWeather = true
+        weatherService.fetchWeatherData(for: weatherCity) { result in
+            DispatchQueue.main.async {
+                isLoadingWeather = false
+                if case .success(let data) = result {
+                    currentWeather = data
+                    print("🌤️ Погода загружена: \(Int(data.main.temp))°C, \(data.weather.first?.description ?? "")")
+                }
+            }
+        }
+    }
+
+    private var weatherWidgetView: some View {
+        Group {
+            if isLoadingWeather {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .frame(width: 60)
+            } else if let weather = currentWeather,
+                      let condition = weather.weather.first {
+                HStack(spacing: 4) {
+                    Image(systemName: weatherIcon(for: condition.main))
+                        .foregroundColor(weatherIconColor(for: condition.main))
+                        .font(.title3)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("\(Int(weather.main.temp))°C")
+                            .font(.subheadline)
+                            .fontWeight(.semibold)
+                        Text(condition.description)
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.controlBackgroundColor))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                )
+                .help("Погода в \(weather.name): \(Int(weather.main.temp))°C, влажность \(weather.main.humidity)%, ветер \(weather.wind.speed) м/с")
+                .onTapGesture {
+                    loadWeather()
+                }
+            }
+        }
+    }
+
     private var canSendMessage: Bool {
         // Проверяем базовые условия
         guard !viewModel.currentMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
@@ -45,6 +126,9 @@ struct ChatView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+
+                weatherWidgetView
+                    .padding(.leading, 8)
 
                 Spacer()
 
@@ -418,6 +502,9 @@ struct ChatView: View {
                 .padding()
                 .background(Color.red.opacity(0.1))
             }
+        }
+        .onAppear {
+            loadWeather()
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(settings: settings)

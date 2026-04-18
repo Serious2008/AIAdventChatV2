@@ -34,6 +34,35 @@ class WeatherService {
     private let apiKey = "bd5e378503939ddaee76f12ad7a97608" // OpenWeatherMap API key
     private let baseURL = "https://api.openweathermap.org/data/2.5/weather"
 
+    func fetchWeatherData(for city: String, completion: @escaping (Result<WeatherData, Error>) -> Void) {
+        let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? city
+        let urlString = "\(baseURL)?q=\(encodedCity)&appid=\(apiKey)&units=metric&lang=ru"
+
+        guard let url = URL(string: urlString) else {
+            completion(.failure(NSError(domain: "WeatherService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неверный URL"])))
+            return
+        }
+
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            guard let data = data else {
+                completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                return
+            }
+
+            do {
+                let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
+                completion(.success(weatherData))
+            } catch {
+                completion(.failure(error))
+            }
+        }.resume()
+    }
+
     func fetchWeather(for city: String, completion: @escaping (Result<String, Error>) -> Void) {
         let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? city
         let urlString = "\(baseURL)?q=\(encodedCity)&appid=\(apiKey)&units=metric&lang=ru"
