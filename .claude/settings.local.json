@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(cat:*)"
+    ]
+  },
+  "model": "sonnet",
+  "env": {
+    "PROJECT_RULES": "CLAUDE.md",
+    "PROJECT_NAME": "AIAdventChatV2",
+    "PROJECT_ARCHITECTURE": "MVVM"
+  }
+}
