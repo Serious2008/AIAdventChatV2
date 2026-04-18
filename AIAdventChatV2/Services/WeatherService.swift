@@ -45,18 +45,20 @@ class WeatherService {
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             if let error = error {
-                completion(.failure(error))
+                DispatchQueue.main.async { completion(.failure(error)) }
                 return
             }
             guard let data = data else {
-                completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                DispatchQueue.main.async {
+                    completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                }
                 return
             }
             do {
                 let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
                 DispatchQueue.main.async { completion(.success(weatherData)) }
             } catch {
-                completion(.failure(error))
+                DispatchQueue.main.async { completion(.failure(error)) }
             }
         }.resume()
     }
@@ -72,12 +74,14 @@ class WeatherService {
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             if let error = error {
-                completion(.failure(error))
+                DispatchQueue.main.async { completion(.failure(error)) }
                 return
             }
 
             guard let data = data else {
-                completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                DispatchQueue.main.async {
+                    completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                }
                 return
             }
 
@@ -92,9 +96,9 @@ class WeatherService {
                 - Давление: \(weatherData.main.pressure) гПа
                 - Скорость ветра: \(weatherData.wind.speed) м/с
                 """
-                completion(.success(weatherInfo))
+                DispatchQueue.main.async { completion(.success(weatherInfo)) }
             } catch {
-                completion(.failure(error))
+                DispatchQueue.main.async { completion(.failure(error)) }
             }
         }.resume()
     }
