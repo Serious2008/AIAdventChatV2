@@ -56,8 +56,11 @@ struct UserProfileView: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title2)
                         .foregroundColor(.gray)
+                        .accessibilityHidden(true)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("btn_profile_close")
+                .accessibilityLabel("Закрыть профиль")
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
@@ -75,6 +78,7 @@ struct UserProfileView: View {
                                     .frame(width: 120, alignment: .trailing)
                                 TextField("Например: Сергей", text: $service.profile.name)
                                     .textFieldStyle(.roundedBorder)
+                                    .accessibilityIdentifier("input_profile_name")
                             }
 
                             HStack {
@@ -106,7 +110,8 @@ struct UserProfileView: View {
                         TagInputView(
                             tags: $service.profile.skills,
                             placeholder: "Добавить навык...",
-                            examples: ["Swift", "SwiftUI", "Python", "Machine Learning"]
+                            examples: ["Swift", "SwiftUI", "Python", "Machine Learning"],
+                            identifier: "profile_skills"
                         )
                         .padding(8)
                     }
@@ -189,13 +194,18 @@ struct UserProfileView: View {
                 Button("Загрузить пример") {
                     service.loadExample()
                 }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
                 .help("Заполнить профиль примером данных")
+                .accessibilityIdentifier("btn_profile_load_example")
 
                 Button("Сбросить") {
                     service.reset()
                 }
+                .buttonStyle(.plain)
                 .foregroundColor(.red)
                 .help("Очистить весь профиль")
+                .accessibilityIdentifier("btn_profile_reset")
 
                 Spacer()
 
@@ -205,14 +215,18 @@ struct UserProfileView: View {
                         showingExportSheet = true
                     }
                 }
+                .buttonStyle(.plain)
+                .foregroundColor(.accentColor)
                 .help("Экспортировать профиль в JSON")
+                .accessibilityIdentifier("btn_profile_export")
 
                 Button("Сохранить и закрыть") {
                     service.save()
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("btn_profile_save")
                 .keyboardShortcut(.return, modifiers: .command)
+                .buttonStyle(.borderedProminent)
             }
             .padding()
             .background(Color(NSColor.controlBackgroundColor))
@@ -237,6 +251,7 @@ struct TagInputView: View {
     @Binding var tags: [String]
     var placeholder: String
     var examples: [String] = []
+    var identifier: String = "tags"
 
     @State private var newTag: String = ""
 
@@ -248,6 +263,7 @@ struct TagInputView: View {
                     HStack {
                         Text(tag)
                             .font(.callout)
+                            .accessibilityIdentifier("tag_\(identifier)_\(index)")
 
                         Button(action: {
                             tags.remove(at: index)
@@ -256,6 +272,7 @@ struct TagInputView: View {
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityIdentifier("btn_\(identifier)_delete_\(index)")
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -269,6 +286,7 @@ struct TagInputView: View {
             HStack {
                 TextField(placeholder, text: $newTag)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("input_\(identifier)")
                     .onSubmit {
                         addTag()
                     }
@@ -276,9 +294,12 @@ struct TagInputView: View {
                 Button(action: addTag) {
                     Image(systemName: "plus.circle.fill")
                         .foregroundColor(.blue)
+                        .accessibilityHidden(true)
                 }
                 .buttonStyle(.plain)
                 .disabled(newTag.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityIdentifier("btn_\(identifier)_add")
+                .accessibilityLabel("Добавить \(identifier)")
             }
 
             // Examples

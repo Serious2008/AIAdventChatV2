@@ -476,8 +476,8 @@ struct ChatView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
+                        .accessibilityIdentifier("btn_toolbar_menu")
                 }
-                .accessibilityIdentifier("btn_toolbar_menu")
             }
         }
     }
