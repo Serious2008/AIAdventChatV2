@@ -2,8 +2,6 @@
 //  WeatherService.swift
 //  AIAdventChatV2
 //
-//  Created by Claude on 01.10.2025.
-//
 
 import Foundation
 

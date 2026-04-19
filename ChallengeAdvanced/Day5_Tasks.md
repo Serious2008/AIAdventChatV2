@@ -29,7 +29,7 @@
 **Файл:** `Services/WeatherService.swift`  
 **Проблема:** В ветке `guard let data` используется `DispatchQueue.global().async { DispatchQueue.main.async {...} }` — двойное переключение без смысла, достаточно `DispatchQueue.main.async`  
 **Критерий готовности:** Убран лишний `DispatchQueue.global().async`, используется только `DispatchQueue.main.async`  
-**Статус:** 🔲
+**Статус:** ✅
 
 ---
 
@@ -38,7 +38,7 @@
 **Файл:** `Services/WeatherService.swift`  
 **Проблема:** `urlString` строится одинаково в `fetchWeatherData` и `fetchWeather` — при изменении параметров нужно менять в двух местах  
 **Критерий готовности:** Вынесен приватный метод `buildURL(for city: String) -> URL?`  
-**Статус:** 🔲
+**Статус:** ❌
 
 ---
 
