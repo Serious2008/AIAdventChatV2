@@ -47,7 +47,7 @@ struct WeatherWidgetView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
                 )
-                .help("\(weather.weather.first?.description.capitalized ?? "") • Ощущается как \(Int(weather.main.feels_like))°C • Влажность \(weather.main.humidity)%")
+                .help("\(weather.weather.first?.description.capitalized ?? "") • Ощущается как \(Int(weather.main.feelsLike))°C • Влажность \(weather.main.humidity)%")
                 .onTapGesture { loadWeather() }
             } else if loadError {
                 Button(action: loadWeather) {

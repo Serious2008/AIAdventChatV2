@@ -15,7 +15,7 @@ struct WeatherData: Codable {
 
     struct Main: Codable {
         let temp: Double
-        let feels_like: Double
+        let feelsLike: Double
         let humidity: Int
         let pressure: Int
     }
@@ -45,21 +45,29 @@ class WeatherService {
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             if let error = error {
-                DispatchQueue.main.async { completion(.failure(error)) }
-                return
-            }
-            guard let data = data else {
                 DispatchQueue.main.async {
+                completion(.failure(error))
+            }
+            return
+        }
+            guard let data = data else {
+                DispatchQueue.global().async {
+                    DispatchQueue.main.async {
                     completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
                 }
+            }
                 return
             }
+
             do {
                 let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
                 DispatchQueue.main.async { completion(.success(weatherData)) }
             } catch {
-                DispatchQueue.main.async { completion(.failure(error)) }
+                DispatchQueue.main.async {
+                completion(.failure(error))
+                    
             }
+    }
         }.resume()
     }
 
@@ -74,13 +82,17 @@ class WeatherService {
 
         URLSession.shared.dataTask(with: url) { data, response, error in
             if let error = error {
-                DispatchQueue.main.async { completion(.failure(error)) }
+                DispatchQueue.main.async {
+                    completion(.failure(error))
+                }
                 return
             }
 
             guard let data = data else {
-                DispatchQueue.main.async {
-                    completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                DispatchQueue.global().async {
+                    DispatchQueue.main.async {
+                        completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+                    }
                 }
                 return
             }
@@ -90,7 +102,6 @@ class WeatherService {
                 let weatherInfo = """
                 Актуальная погода в городе \(weatherData.name):
                 - Температура: \(Int(weatherData.main.temp))°C
-                - Ощущается как: \(Int(weatherData.main.feels_like))°C
                 - Описание: \(weatherData.weather.first?.description ?? "")
                 - Влажность: \(weatherData.main.humidity)%
                 - Давление: \(weatherData.main.pressure) гПа
@@ -98,7 +109,9 @@ class WeatherService {
                 """
                 DispatchQueue.main.async { completion(.success(weatherInfo)) }
             } catch {
-                DispatchQueue.main.async { completion(.failure(error)) }
+                DispatchQueue.main.async {
+                    completion(.failure(error))
+                }
             }
         }.resume()
     }
@@ -132,3 +145,4 @@ class WeatherService {
         return keywords.contains { lowerMessage.contains($0) }
     }
 }
+

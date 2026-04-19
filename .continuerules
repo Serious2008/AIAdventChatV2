@@ -1,0 +1,134 @@
+This is a macOS app. ALWAYS use Swift 6.0. NEVER use Python, TypeScript, or any other language.
+
+## Platform
+- Target: macOS 15.5+ ONLY
+- NEVER use UIKit, UIApplication, UIViewController — this is NOT iOS
+- Use AppKit instead: NSApplication, NSViewController, NSWindow
+- Use UserNotifications for notifications (not UILocalNotification)
+- Use AppKit for UI elements: NSButton, NSTextField, NSStackView
+
+## Architecture: MVVM
+- Models/ — structs
+- ViewModels/ — ObservableObject classes
+- Views/ — SwiftUI views
+- Services/ — business logic
+
+## Service pattern (ALWAYS follow this exactly):
+```swift
+//
+//  MyService.swift
+//  AIAdventChatV2
+//
+//  Created by Sergey Markov
+//
+
+import Foundation
+
+class MyService {
+
+    // MARK: - Properties
+
+    private let settings: Settings
+
+    // MARK: - Initialization
+
+    init(settings: Settings) {
+        self.settings = settings
+    }
+
+    // MARK: - Public Methods
+
+    func performAction() async throws {
+        // implementation
+    }
+
+    // MARK: - Private Methods
+
+    private func helperMethod() {
+        // implementation
+    }
+}
+```
+
+## Model pattern:
+```swift
+struct MyModel: Identifiable, Codable {
+    let id: UUID
+    let name: String
+
+    init(name: String) {
+        self.id = UUID()
+        self.name = name
+    }
+}
+```
+
+## Strict rules — NEVER violate:
+- NEVER force unwrap: no `!` after optionals. Use `guard let` or `if let`
+- NEVER hardcode API keys — use `settings.apiKey`
+- NEVER block main thread — use `async/await` or background DispatchQueue
+- NEVER use `Any` type — use concrete types
+- NEVER write UI code inside ViewModels
+- NEVER access UserDefaults directly — use Settings class
+
+## Error handling — ALWAYS:
+```swift
+// BAD:
+let url = URL(string: str)!
+
+// GOOD:
+guard let url = URL(string: str) else {
+    print("❌ Invalid URL")
+    return
+}
+
+// BAD:
+let data = try! decoder.decode(...)
+
+// GOOD:
+do {
+    let data = try decoder.decode(...)
+} catch {
+    print("❌ Decode error: \(error)")
+}
+```
+
+## Async pattern:
+```swift
+// PREFER async/await:
+func fetchData() async throws -> Data {
+    let (data, _) = try await URLSession.shared.data(from: url)
+    return data
+}
+
+// For completion handlers:
+func fetchData(completion: @escaping (Result<Data, Error>) -> Void) {
+    URLSession.shared.dataTask(with: url) { data, _, error in
+        DispatchQueue.main.async {
+            if let error { completion(.failure(error)); return }
+            guard let data else { return }
+            completion(.success(data))
+        }
+    }.resume()
+}
+```
+
+## Logging with emoji (always):
+```swift
+print("🚀 Service started")
+print("✅ Success: \(result)")
+print("❌ Error: \(error)")
+print("📤 Sending request...")
+print("📥 Response received")
+print("💾 Saving to database...")
+print("⏰ Timeout occurred")
+```
+
+## Imports order:
+```swift
+import Foundation
+import SwiftUI
+import Combine
+import AppKit          // NOT UIKit
+import UserNotifications
+```
