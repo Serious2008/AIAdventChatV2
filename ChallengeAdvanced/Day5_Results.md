@@ -1,92 +1,131 @@
-# Day 5 — Execution Loop: Результаты двух прогонов
+# Day 5 — Execution Loop: Результаты трёх прогонов
 
 ## Пул задач (15 задач)
 
 | ID | Тип | Описание |
 |---|---|---|
-| TASK-01 | 🐛 Bug | LocalModelService.checkPythonAvailability блокирует поток |
-| TASK-02 | 🐛 Bug | LocalModelService.checkModelAvailability блокирует поток |
-| TASK-03 | 🐛 Bug | WeatherService — лишний DispatchQueue.global |
-| TASK-04 | 🐛 Bug | WeatherService — дублирование urlString |
-| TASK-05 | ♻️ Refactor | WeatherService — MARK секции |
-| TASK-06 | ♻️ Refactor | WeatherService — emoji логирование |
-| TASK-07 | ♻️ Refactor | WeatherService — WeatherError enum |
-| TASK-08 | ♻️ Refactor | LocalModelService — MARK секции |
-| TASK-09 | 🧪 Test | WeatherService.extractCityName — тесты |
-| TASK-10 | 🧪 Test | WeatherService.isWeatherRequest — тесты |
+| TASK-01 | 🐛 Bug | LocalModelService — `waitUntilExit()` блокирует поток |
+| TASK-02 | 🐛 Bug | LocalModelService — `checkModelAvailability` блокирует поток |
+| TASK-03 | 🐛 Bug | WeatherService — лишний `DispatchQueue.global()` |
+| TASK-04 | 🐛 Bug | WeatherService — дублирование `urlString` |
+| TASK-05 | ♻️ Refactor | WeatherService — добавить `// MARK:` секции |
+| TASK-06 | ♻️ Refactor | WeatherService — добавить emoji логирование |
+| TASK-07 | ♻️ Refactor | WeatherService — заменить `NSError` на `WeatherError` enum |
+| TASK-08 | ♻️ Refactor | LocalModelService — добавить `// MARK:` секции |
+| TASK-09 | 🧪 Test | WeatherService.extractCityName — покрыть тестами |
+| TASK-10 | 🧪 Test | WeatherService.isWeatherRequest — покрыть тестами |
 | TASK-11 | 🧪 Test | WeatherData — Codable тесты |
 | TASK-12 | 🧪 Test | TokenManager — граничные значения |
-| TASK-13 | 📄 Docs | Docs/API_ENDPOINTS.md |
-| TASK-14 | 📄 Docs | Doc-комментарии WeatherService |
-| TASK-15 | 📄 Docs | #Preview для MessageBubble, SettingsView, UserProfileView |
+| TASK-13 | 📄 Docs | Создать Docs/API_ENDPOINTS.md |
+| TASK-14 | 📄 Docs | Doc-комментарии к публичным методам WeatherService |
+| TASK-15 | 📄 Docs | Добавить `#Preview` для View-файлов |
 
 ---
 
-## Прогон 1 — phi4:14b (локальная модель)
+## Прогон 1 — qwen2.5-coder:1.5b-base (локальная, быстрая)
 
-**Метод:** bash-скрипт → Ollama API → применить файл → git commit → следующая задача
+**Модель:** qwen2.5-coder:1.5b-base (986 MB)
+**Метод:** bash-скрипт → Ollama API (timeout 60с) → записать файл → git commit → следующая задача
 
 ### Лог задач
 
-| Задача | Статус | Причина | Время |
+| Задача | Статус | Причина провала / Файл | Время |
 |---|---|---|---|
-| TASK-01 | ❌ | timeout 120с — модель не ответила | 120с |
-| TASK-02 | ❌ | timeout 120с | 120с |
-| TASK-03 | ❌ | timeout 120с | 120с |
-| TASK-04 | ❌ | timeout 120с | 120с |
-| TASK-05 | ❌ | timeout 120с | 120с |
-| TASK-06 | ❌ | timeout 120с | 120с |
-| TASK-07 | ❌ | timeout 120с | 120с |
-| TASK-08 | ❌ | timeout 120с | 120с |
-| TASK-09 | ❌ | timeout 120с | 120с |
-| TASK-10 | ❌ | timeout 120с | 120с |
-| TASK-11 | ❌ | timeout 120с | 120с |
-| TASK-12 | ❌ | timeout 120с | 120с |
-| TASK-13 | ❌ | timeout 120с | 120с |
-| TASK-14 | ❌ | timeout 120с | 120с |
-| TASK-15 | ❌ | timeout 120с | 120с |
+| TASK-01 | ❌ | пустое содержимое файла | 8с |
+| TASK-02 | ❌ | timeout 60с | 60с |
+| TASK-03 | ✅ | Services/WeatherService.swift | 50с |
+| TASK-04 | ❌ | пустое содержимое файла | 15с |
+| TASK-05 | ✅ | Services/WeatherService.swift | 50с |
+| TASK-06 | ❌ | timeout 60с | 60с |
+| TASK-07 | ❌ | timeout 60с | 60с |
+| TASK-08 | ❌ | timeout 60с | 60с |
+| TASK-09 | ❌ | пустое содержимое файла | 14с |
+| TASK-10 | ❌ | галлюцинация пути `/Users/vladimir/...` | 14с |
+| TASK-11 | ❌ | пустое содержимое файла | 9с |
+| TASK-12 | ❌ | пустое содержимое файла | 4с |
+| TASK-13 | ❌ | нет `FILE:` в ответе | 27с |
+| TASK-14 | ❌ | timeout 61с | 61с |
+| TASK-15 | ✅ | Views/MessageBubble.swift | 41с |
 
 ### Метрики Прогона 1
 
 | Метрика | Значение |
 |---|---|
-| Задач выполнено | 0 / 15 |
-| Задач провалено | 15 / 15 |
-| Подряд без паузы | 0 |
+| Задач выполнено | 3 / 15 |
+| Задач провалено | 12 / 15 |
+| Подряд без паузы | 1 (max) |
 | Первый сбой | TASK-01 |
-| Среднее время на задачу | 120с (timeout) |
-| Общее время | ~30 минут |
-| Коммитов | 0 |
+| Среднее время на задачу | ~38с |
+| Общее время | ~573с (~10 мин) |
+| Коммитов создано | 3 |
+| Процент с первого раза | 20% |
 
-**Причина провала:** phi4:14b слишком медленная для autonomous loop через API. Контекст (системный промпт + файл + задача) превысил скорость генерации модели — каждый запрос таймаутился на 120с не дав ответа.
+**Паттерны провалов:**
+- Малые задачи (тесты, MARK секции): пустой ответ — модель не понимает что писать
+- Большие задачи (рефакторинг сервисов): timeout 60с — генерация обрывается
+- Задачи с путями: галлюцинация (TASK-10 — вернула `/Users/vladimir/...`)
 
 ---
 
-## Прогон 2 — Claude Code (облачная модель)
+## Прогон 2 — phi4:14b (локальная, умная)
 
-**Метод:** прямое редактирование файлов + 1 коммит со всеми изменениями
+**Модель:** phi4:14b (9.1 GB)
+**Метод:** тот же bash-скрипт, timeout 300с
+
+### Лог задач
+
+| Задача | Статус | Причина | Время |
+|---|---|---|---|
+| TASK-01 | ❌ | timeout 300с | 300с |
+| TASK-03 | ❌ | timeout 301с | 301с |
+| TASK-05 | ❌ | timeout 300с | 300с |
+| TASK-07 | ❌ | timeout 300с | 300с |
+| — | — | loop прерван | — |
+
+> Прогон остановлен после 4 задач: loop пропускал уже выполненные/заблокированные задачи из предыдущих прогонов. Каждый запрос таймаутился на 300с — ни одного ответа.
+
+### Метрики Прогона 2
+
+| Метрика | Значение |
+|---|---|
+| Задач выполнено | 0 / 4 |
+| Задач провалено | 4 / 4 |
+| Подряд без паузы | 0 |
+| Первый сбой | TASK-01 |
+| Среднее время на задачу | 300с (timeout) |
+| Общее время | ~1201с (~20 мин) |
+| Коммитов создано | 0 |
+| Процент с первого раза | 0% |
+
+**Причина:** phi4:14b работает только на CPU (нет Metal поддержки модели). Скорость генерации ~97с на простой запрос. Контекст (системный промпт + файл + задача = ~3000 токенов) требует 300с+ — превышает любой разумный timeout.
+
+---
+
+## Прогон 3 — Claude Code (облачная модель)
+
+**Метод:** прямое редактирование файлов через Edit/Write, 1 финальный коммит
 
 ### Лог задач
 
 | Задача | Статус | Файл | Время |
 |---|---|---|---|
-| TASK-01 | ✅ | LocalModelService.swift | 15с |
-| TASK-02 | ✅ | LocalModelService.swift | 0с (в том же файле) |
-| TASK-03 | ✅ | WeatherService.swift | 10с |
-| TASK-04 | ✅ | WeatherService.swift | 0с (в том же файле) |
-| TASK-05 | ✅ | WeatherService.swift | 0с (в том же файле) |
-| TASK-06 | ✅ | WeatherService.swift | 0с (в том же файле) |
-| TASK-07 | ✅ | WeatherService.swift | 0с (в том же файле) |
-| TASK-08 | ✅ | LocalModelService.swift | 5с |
-| TASK-09 | ✅ | WeatherServiceTests.swift | 20с |
-| TASK-10 | ✅ | WeatherServiceTests.swift | 0с (в том же файле) |
-| TASK-11 | ✅ | WeatherServiceTests.swift | 0с (в том же файле) |
-| TASK-12 | ✅ | TokenManagerTests.swift | 10с |
+| TASK-01 | ✅ | Services/LocalModelService.swift | 15с |
+| TASK-02 | ✅ | Services/LocalModelService.swift | 0с (тот же файл) |
+| TASK-03 | ✅ | Services/WeatherService.swift | 10с |
+| TASK-04 | ✅ | Services/WeatherService.swift | 0с (тот же файл) |
+| TASK-05 | ✅ | Services/WeatherService.swift | 0с (тот же файл) |
+| TASK-06 | ✅ | Services/WeatherService.swift | 0с (тот же файл) |
+| TASK-07 | ✅ | Services/WeatherService.swift | 0с (тот же файл) |
+| TASK-08 | ✅ | Services/LocalModelService.swift | 5с |
+| TASK-09 | ✅ | AIAdventChatV2Tests/WeatherServiceTests.swift | 20с |
+| TASK-10 | ✅ | AIAdventChatV2Tests/WeatherServiceTests.swift | 0с (тот же файл) |
+| TASK-11 | ✅ | AIAdventChatV2Tests/WeatherServiceTests.swift | 0с (тот же файл) |
+| TASK-12 | ✅ | AIAdventChatV2Tests/TokenManagerTests.swift | 10с |
 | TASK-13 | ✅ | Docs/API_ENDPOINTS.md | 5с |
-| TASK-14 | ✅ | WeatherService.swift | 0с (в том же файле) |
-| TASK-15 | ✅ | MessageBubble, SettingsView, UserProfileView | 15с |
+| TASK-14 | ✅ | Services/WeatherService.swift | 0с (тот же файл) |
+| TASK-15 | ✅ | Views/MessageBubble.swift + SettingsView + UserProfileView | 15с |
 
-### Метрики Прогона 2
+### Метрики Прогона 3
 
 | Метрика | Значение |
 |---|---|
@@ -96,38 +135,54 @@
 | Первый сбой | нет |
 | Среднее время на задачу | ~5с |
 | Общее время | ~5 минут |
-| Коммитов | 1 |
+| Коммитов создано | 1 |
 | Процент с первого раза | 100% |
 
 ---
 
 ## Итоговое сравнение
 
-| Метрика | phi4:14b (локальная) | Claude Code (облако) |
-|---|---|---|
-| Задач выполнено | 0 / 15 | 15 / 15 |
-| Подряд без паузы | 0 | 15 |
-| Среднее время / задача | 120с (timeout) | ~5с |
-| Первый сбой | TASK-01 | нет |
-| % с первого раза | 0% | 100% |
-| Автономность | ❌ зависала | ✅ полная |
-| Коммитов создано | 0 | 1 |
+| Метрика | qwen2.5-coder:1.5b | phi4:14b | Claude Code |
+|---|---|---|---|
+| Размер модели | 986 MB | 9.1 GB | облако |
+| Задач выполнено | **3 / 15** | **0 / 4** | **15 / 15** |
+| Подряд без паузы | 1 | 0 | 15 |
+| Среднее время / задача | ~38с | 300с (timeout) | ~5с |
+| Первый сбой | TASK-01 | TASK-01 | нет |
+| % с первого раза | 20% | 0% | 100% |
+| Галлюцинации путей | ✅ да (TASK-10) | — | ❌ нет |
+| Понимание формата | частично | ❌ нет | ✅ полное |
+| Автономность | частичная | ❌ нет | ✅ полная |
+| Коммитов создано | 3 | 0 | 1 |
 
 ---
 
-## Анализ: почему phi4:14b провалила execution loop
+## Анализ: почему локальные модели провалили execution loop
 
-1. **Скорость** — 14B модель слишком медленная для autonomous loop. Генерация ответа с большим контекстом (>2000 токенов) превышала 120с timeout
-2. **Контекст** — системный промпт + содержимое файла + описание задачи = слишком большой промпт для реального времени ответа
-3. **Формат** — модель не следовала строгому формату `FILE: path` даже когда отвечала — Continue/shell не мог распарсить ответ
-4. **Архитектура** — локальные модели не приспособлены для pipeline execution loop. Они заточены под интерактивный чат с человеком
+### qwen2.5-coder:1.5b (3/15)
+- **Плюс:** быстрая (8-50с на задачу), успешно справилась с небольшими файлами
+- **Минус 1:** Малые задачи (тесты, разметка) — пустой ответ. Модель не умеет писать с нуля без примера
+- **Минус 2:** Большие задачи — обрыв на 60с. 1.5B параметров не успевает сгенерировать полный файл
+- **Минус 3:** Галлюцинация путей. Обучалась на открытых репо, запоминала чужие пути (`/Users/vladimir/...`)
+
+### phi4:14b (0/4)
+- **Плюс:** качество понимания выше — если бы отвечала, код был бы лучше
+- **Минус:** работает только на CPU (нет Metal support), 97с на простой запрос. При контексте ~3000 токенов — каждый запрос таймаутится на 300с
+
+### Claude Code (15/15)
+- **Ключевое преимущество:** понимает проект целиком (читает несколько файлов за раз, видит зависимости)
+- Групповая оптимизация: несколько задач в одном файле — за 1 Edit операцию
+- Не галлюцинирует пути — читает реальную файловую систему
+- Формат ответа предсказуем — не нужен парсинг `FILE:` строки
+
+---
 
 ## Вывод
 
-**Execution Loop работает только с облачными моделями** (Claude API, GPT-4).
-Локальные 14B модели подходят для:
-- Автокомплита (1.5B — быстро)
-- Интерактивного чата с паузами между запросами
-- Единичных задач без pipeline
+**Execution Loop через Ollama API работает ограниченно:**
+- Маленькие быстрые модели (1.5B) справляются только с простыми задачами (~20%)
+- Большие умные модели (14B) — слишком медленные для pipeline
+- Оптимальный диапазон для autonomous loop: **7-8B с GPU offloading** (Metal)
 
-Для автономного выполнения задач без вмешательства человека нужна модель которая отвечает за 2-5с — это возможно только в облаке или с очень маленькими (1-3B) специализированными моделями.
+**Для команды Claude Code:**
+Локальные модели подходят как вспомогательный инструмент (автокомплит, быстрые справки). Autonomous execution loop с качеством >80% — только облако или специализированные модели с GPU.
