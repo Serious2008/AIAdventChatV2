@@ -7,10 +7,12 @@ identifier = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
 if not identifier:
     print("Usage: ax_click <identifier>"); sys.exit(1)
 
+# Iterate all processes named APP_NAME, pick the one with windows
 script = f'''
 tell application "System Events"
-    tell process "{APP_NAME}"
-        set allWindows to every window
+    set allProcs to every process whose name is "{APP_NAME}"
+    repeat with p in allProcs
+        set allWindows to every window of p
         repeat with w in allWindows
             set allEl to entire contents of w
             repeat with el in allEl
@@ -29,11 +31,11 @@ tell application "System Events"
                 end try
             end repeat
         end repeat
-        return ""
-    end tell
+    end repeat
+    return ""
 end tell
 '''
-result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=15)
+result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=20)
 output = result.stdout.strip()
 if not output:
     print(f"Element '{identifier}' not found"); sys.exit(1)

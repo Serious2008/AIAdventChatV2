@@ -128,7 +128,7 @@ struct TokenIndicatorView: View {
         TokenIndicatorView(
             message: "Привет, как дела?",
             provider: .claude,
-            model: "claude-3-7-sonnet-20250219"
+            model: "claude-sonnet-4-6"
         )
 
         // Warning status

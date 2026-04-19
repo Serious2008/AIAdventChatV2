@@ -435,7 +435,7 @@ class ChatViewModel: ObservableObject {
 
         // Добавляем системное сообщение о начале суммаризации
         let systemMessage = Message(
-            content: "🔄 Суммаризация текста с помощью Claude (claude-3-7-sonnet-20250219)...",
+            content: "🔄 Суммаризация текста с помощью Claude (claude-sonnet-4-6)...",
             isFromUser: false,
             isSystemMessage: true
         )
@@ -461,7 +461,7 @@ class ChatViewModel: ObservableObject {
                     if let index = self.messages.firstIndex(where: { $0.id == systemMessage.id }) {
                         let compressionRatio = Int((1.0 - Double(summarizedText.count) / Double(message.count)) * 100)
                         let updatedMessage = Message(
-                            content: "✅ Текст суммаризирован (сжатие: \(compressionRatio)%) • Модель: claude-3-7-sonnet-20250219",
+                            content: "✅ Текст суммаризирован (сжатие: \(compressionRatio)%) • Модель: claude-sonnet-4-6",
                             isFromUser: false,
                             isSystemMessage: true
                         )
@@ -639,7 +639,7 @@ class ChatViewModel: ObservableObject {
 
         // Добавляем инструменты если Yandex Tracker настроен
         var requestBody: [String: Any] = [
-            "model": "claude-3-7-sonnet-20250219",
+            "model": "claude-sonnet-4-6",
             "max_tokens": 2000,
             "temperature": settings.temperature,
             "system": systemPrompt,
@@ -820,7 +820,7 @@ class ChatViewModel: ObservableObject {
                                         inputTokens: inputTokens,
                                         outputTokens: outputTokens,
                                         cost: cost,
-                                        modelName: "claude-3-7-sonnet-20250219"
+                                        modelName: "claude-sonnet-4-6"
                                     )
                                 )
                                 messages.append(claudeMessage)
@@ -862,7 +862,7 @@ class ChatViewModel: ObservableObject {
                                     inputTokens: nil,
                                     outputTokens: nil,
                                     cost: nil,
-                                    modelName: "claude-3-7-sonnet-20250219"
+                                    modelName: "claude-sonnet-4-6"
                                 )
                             )
                             messages.append(claudeMessage)
@@ -900,7 +900,7 @@ class ChatViewModel: ObservableObject {
                     inputTokens: inputTokens,
                     outputTokens: outputTokens,
                     cost: cost,
-                    modelName: "claude-3-7-sonnet-20250219"
+                    modelName: "claude-sonnet-4-6"
                 )
             )
             messages.append(claudeMessage)
@@ -917,7 +917,7 @@ class ChatViewModel: ObservableObject {
                 inputTokens: inputTokens,
                 outputTokens: outputTokens,
                 cost: cost,
-                modelName: "claude-3-7-sonnet-20250219"
+                modelName: "claude-sonnet-4-6"
             )
         )
         messages.append(claudeMessage)
@@ -1132,7 +1132,7 @@ class ChatViewModel: ObservableObject {
         ])
 
         let requestBody: [String: Any] = [
-            "model": "claude-3-7-sonnet-20250219",
+            "model": "claude-sonnet-4-6",
             "max_tokens": 2000,
             "temperature": settings.temperature,
             "system": "Вы - полезный ассистент с доступом к инструментам Yandex Tracker. Используйте результаты выполнения инструментов для ответа пользователю на естественном языке.",
@@ -1212,7 +1212,7 @@ class ChatViewModel: ObservableObject {
                             inputTokens: inputTokens,
                             outputTokens: outputTokens,
                             cost: cost,
-                            modelName: "claude-3-7-sonnet-20250219"
+                            modelName: "claude-sonnet-4-6"
                         )
                     )
                     messages.append(claudeMessage)
@@ -1242,7 +1242,7 @@ class ChatViewModel: ObservableObject {
                                     inputTokens: inputTokens,
                                     outputTokens: outputTokens,
                                     cost: cost,
-                                    modelName: "claude-3-7-sonnet-20250219"
+                                    modelName: "claude-sonnet-4-6"
                                 )
                             )
                             messages.append(claudeMessage)
@@ -2105,7 +2105,7 @@ class ChatViewModel: ObservableObject {
                                 inputTokens: nil,
                                 outputTokens: nil,
                                 cost: nil,
-                                modelName: "claude-3-7-sonnet-20250219"
+                                modelName: "claude-sonnet-4-6"
                             ),
                             usedRAG: true,
                             ragSources: ragSources,

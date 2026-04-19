@@ -250,7 +250,7 @@ class SolverReviewerService {
         request.timeoutInterval = 60.0
 
         let requestBody: [String: Any] = [
-            "model": "claude-3-7-sonnet-20250219",
+            "model": "claude-sonnet-4-6",
             "max_tokens": 2000,
             "temperature": temperature,
             "system": systemPrompt,

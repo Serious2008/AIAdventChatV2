@@ -162,7 +162,7 @@ class AutoTestAgent: ObservableObject {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
             // Use Claude 3.7 Sonnet for test generation (not router models)
-            let claudeModel = "claude-3-7-sonnet-20250219"
+            let claudeModel = "claude-sonnet-4-6"
 
             let requestBody: [String: Any] = [
                 "model": claudeModel,

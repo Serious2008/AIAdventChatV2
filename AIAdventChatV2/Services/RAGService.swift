@@ -170,7 +170,7 @@ class RAGService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let requestBody: [String: Any] = [
-            "model": "claude-3-7-sonnet-20250219",
+            "model": "claude-sonnet-4-6",
             "max_tokens": 4096,
             "messages": [
                 [

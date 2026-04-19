@@ -17,7 +17,7 @@ class TokenManager {
 
     // Лимиты для разных моделей
     static let modelLimits: [String: Int] = [
-        "claude-3-7-sonnet-20250219": 200000,
+        "claude-sonnet-4-6": 200000,
         "claude-3-5-sonnet-20241022": 200000,
         "katanemo/Arch-Router-1.5B": 8192,
         "microsoft/phi-2": 2048,
@@ -42,7 +42,7 @@ class TokenManager {
     static func getLimit(for model: String, provider: ModelProvider) -> Int {
         switch provider {
         case .claude:
-            return modelLimits["claude-3-7-sonnet-20250219"] ?? 200000
+            return modelLimits["claude-sonnet-4-6"] ?? 200000
         case .huggingface:
             return modelLimits[model] ?? 8192
         case .local:

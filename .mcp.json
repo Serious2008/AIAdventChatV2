@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "macos-ui-automation": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/Users/sergeymarkov/Documents/macos-ui-automation-mcp",
+        "run",
+        "macos-ui-automation-mcp"
+      ]
+    }
+  }
+}

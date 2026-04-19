@@ -148,7 +148,7 @@ class HistoryCompressionService {
 
         // Prepare request
         let requestBody: [String: Any] = [
-            "model": "claude-3-7-sonnet-20250219",
+            "model": "claude-sonnet-4-6",
             "max_tokens": 1000,
             "temperature": 0.3, // Lower temperature for more focused summaries
             "system": systemPrompt,

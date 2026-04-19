@@ -1,4 +1,9 @@
 {
+  "env": {
+    "PROJECT_RULES": "CLAUDE.md",
+    "PROJECT_NAME": "AIAdventChatV2",
+    "PROJECT_ARCHITECTURE": "MVVM"
+  },
   "permissions": {
     "allow": [
       "Bash(ls:*)",
@@ -15,13 +20,16 @@
       "Bash(screencapture *)",
       "Bash(pbcopy *)",
       "Bash(pbpaste *)",
-      "Bash(chmod +x *)"
+      "Bash(chmod +x *)",
+      "Bash(sqlite3 \"/Users/sergeymarkov/Library/Application Support/AIAdventChatV2/conversations.db\" \"DELETE FROM messages; DELETE FROM conversations;\")",
+      "Bash(pkill -x AIAdventChatV2)",
+      "Bash(/usr/bin/open /Users/sergeymarkov/Library/Developer/Xcode/DerivedData/AIAdventChatV2-ewozquxuqugagvbhpijbfqixpzko/Build/Products/Debug/AIAdventChatV2.app)",
+      "Bash(/Users/sergeymarkov/Library/Developer/Xcode/DerivedData/AIAdventChatV2-ewozquxuqugagvbhpijbfqixpzko/Build/Products/Debug/AIAdventChatV2.app/Contents/MacOS/AIAdventChatV2)",
+      "WebFetch(domain:github.com)",
+      "Bash(uv --version)",
+      "Skill(update-config)"
     ]
   },
   "model": "sonnet",
-  "env": {
-    "PROJECT_RULES": "CLAUDE.md",
-    "PROJECT_NAME": "AIAdventChatV2",
-    "PROJECT_ARCHITECTURE": "MVVM"
-  }
+  "enabledMcpjsonServers": ["macos-ui-automation"]
 }

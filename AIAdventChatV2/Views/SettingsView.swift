@@ -172,7 +172,7 @@ struct SettingsView: View {
                                     }
                                 }
                             } else {
-                                Text("claude-3-7-sonnet-20250219")
+                                Text("claude-sonnet-4-6")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }

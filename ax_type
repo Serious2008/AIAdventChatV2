@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""Set text field value directly via AXValue. Usage: ax_type <identifier> <text>"""
+import subprocess, sys, time
+
+APP_NAME = "AIAdventChatV2"
+if len(sys.argv) < 3:
+    print("Usage: ax_type <identifier> <text>"); sys.exit(1)
+
+identifier = sys.argv[1].strip()
+text = " ".join(sys.argv[2:])
+
+# Set value via accessibility API directly — bypasses keyboard layout
+script = f'''
+tell application "System Events"
+    set allProcs to every process whose name is "{APP_NAME}"
+    repeat with p in allProcs
+        set allWindows to every window of p
+        repeat with w in allWindows
+            set allEl to entire contents of w
+            repeat with el in allEl
+                try
+                    if value of attribute "AXIdentifier" of el is "{identifier}" then
+                        set value of attribute "AXValue" of el to "{text}"
+                        return "OK"
+                    end if
+                end try
+            end repeat
+        end repeat
+    end repeat
+    return "NOT_FOUND"
+end tell
+'''
+result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=20)
+output = result.stdout.strip()
+if output == "OK":
+    time.sleep(0.3)
+    print(f"Set '{identifier}' = '{text}'")
+elif output == "NOT_FOUND":
+    # Fallback: focus field via click then paste via clipboard
+    print(f"AXValue fallback: using clipboard for '{identifier}'")
+    subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+    time.sleep(0.2)
+    subprocess.run(["osascript", "-e",
+        'tell application "System Events" to keystroke "v" using {command down}'])
+    time.sleep(0.2)
+    print(f"Pasted '{text}' via clipboard")
+else:
+    print(f"Error: {result.stderr.strip()}")
+    sys.exit(1)
