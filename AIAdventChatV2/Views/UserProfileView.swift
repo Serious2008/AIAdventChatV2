@@ -360,3 +360,10 @@ struct ExportProfileView: View {
         .frame(width: 600, height: 500)
     }
 }
+
+
+// MARK: - Preview
+
+#Preview {
+    UserProfileView(settings: Settings())
+}

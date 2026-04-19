@@ -150,4 +150,29 @@ final class TokenManagerTests: XCTestCase {
             XCTAssertGreaterThan(limit, 0)
         }
     }
+
+    // MARK: - Edge Cases (TASK-12)
+
+    func testGetLimitForEmptyModelString() {
+        let limit = TokenManager.getLimit(for: "", provider: .huggingface)
+        XCTAssertGreaterThan(limit, 0)
+    }
+
+    func testGetLimitForEmptyModelStringClaude() {
+        let limit = TokenManager.getLimit(for: "", provider: .claude)
+        XCTAssertEqual(limit, 200000)
+    }
+
+    func testGetLimitForEmptyModelStringLocal() {
+        let limit = TokenManager.getLimit(for: "", provider: .local)
+        XCTAssertGreaterThan(limit, 0)
+    }
+
+    func testGetLimitReturnsPositiveForAnyInput() {
+        let providers: [ModelProvider] = ModelProvider.allCases
+        for provider in providers {
+            let limit = TokenManager.getLimit(for: "unknown-model-xyz", provider: provider)
+            XCTAssertGreaterThan(limit, 0, "Provider \(provider) returned non-positive limit")
+        }
+    }
 }

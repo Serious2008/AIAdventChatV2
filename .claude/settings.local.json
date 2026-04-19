@@ -37,7 +37,9 @@
       "mcp__macos-ui-automation__type_text_to_element_by_selector",
       "mcp__macos-ui-automation__get_app_overview",
       "Bash(curl -s http://localhost:11434/api/tags)",
-      "Bash(ollama list *)"
+      "Bash(ollama list *)",
+      "Bash(curl -s http://localhost:11434/api/generate -d '{\"model\":\"phi4:14b\",\"prompt\":\"Say OK\",\"stream\":false}')",
+      "Bash(bash *)"
     ]
   },
   "model": "sonnet",

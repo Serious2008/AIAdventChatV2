@@ -7,6 +7,24 @@
 
 import Foundation
 
+// MARK: - WeatherError (TASK-07)
+
+enum WeatherError: LocalizedError {
+    case invalidURL
+    case noData
+    case decodingFailed(Error)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "Неверный URL для запроса погоды"
+        case .noData: return "Сервер не вернул данные"
+        case .decodingFailed(let e): return "Ошибка декодирования: \(e.localizedDescription)"
+        }
+    }
+}
+
+// MARK: - WeatherData
+
 struct WeatherData: Codable {
     let name: String
     let main: Main
@@ -30,76 +48,55 @@ struct WeatherData: Codable {
     }
 }
 
+// MARK: - WeatherService
+
 class WeatherService {
-    private let apiKey = "bd5e378503939ddaee76f12ad7a97608" // OpenWeatherMap API key
+
+    // MARK: - Properties
+
+    private let apiKey = "bd5e378503939ddaee76f12ad7a97608"
     private let baseURL = "https://api.openweathermap.org/data/2.5/weather"
 
+    // MARK: - Public Methods
+
+    /// Загружает данные о погоде для указанного города
+    /// - Parameters:
+    ///   - city: Название города
+    ///   - completion: Результат с WeatherData или ошибкой
     func fetchWeatherData(for city: String, completion: @escaping (Result<WeatherData, Error>) -> Void) {
-        let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? city
-        let urlString = "\(baseURL)?q=\(encodedCity)&appid=\(apiKey)&units=metric&lang=ru"
-
-        guard let url = URL(string: urlString) else {
-            completion(.failure(NSError(domain: "WeatherService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неверный URL"])))
+        guard let url = buildURL(for: city) else {
+            print("❌ WeatherService: неверный URL для города '\(city)'")
+            completion(.failure(WeatherError.invalidURL))
             return
         }
-
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                completion(.failure(error))
-            }
-            return
-        }
-            guard let data = data else {
-                DispatchQueue.global().async {
-                    DispatchQueue.main.async {
-                    completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
+        print("🌤️ WeatherService: загрузка погоды для '\(city)'")
+        performRequest(url: url) { result in
+            switch result {
+            case .success(let data):
+                do {
+                    let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
+                    print("✅ WeatherService: погода получена — \(Int(weatherData.main.temp))°C, \(weatherData.name)")
+                    completion(.success(weatherData))
+                } catch {
+                    print("❌ WeatherService: ошибка декодирования — \(error)")
+                    completion(.failure(WeatherError.decodingFailed(error)))
                 }
-            }
-                return
-            }
-
-            do {
-                let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
-                DispatchQueue.main.async { completion(.success(weatherData)) }
-            } catch {
-                DispatchQueue.main.async {
+            case .failure(let error):
+                print("❌ WeatherService: сетевая ошибка — \(error)")
                 completion(.failure(error))
-                    
             }
-    }
-        }.resume()
+        }
     }
 
+    /// Загружает погоду и возвращает форматированную строку
+    /// - Parameters:
+    ///   - city: Название города
+    ///   - completion: Результат с форматированной строкой или ошибкой
     func fetchWeather(for city: String, completion: @escaping (Result<String, Error>) -> Void) {
-        let encodedCity = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? city
-        let urlString = "\(baseURL)?q=\(encodedCity)&appid=\(apiKey)&units=metric&lang=ru"
-
-        guard let url = URL(string: urlString) else {
-            completion(.failure(NSError(domain: "WeatherService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Неверный URL"])))
-            return
-        }
-
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            if let error = error {
-                DispatchQueue.main.async {
-                    completion(.failure(error))
-                }
-                return
-            }
-
-            guard let data = data else {
-                DispatchQueue.global().async {
-                    DispatchQueue.main.async {
-                        completion(.failure(NSError(domain: "WeatherService", code: -2, userInfo: [NSLocalizedDescriptionKey: "Нет данных"])))
-                    }
-                }
-                return
-            }
-
-            do {
-                let weatherData = try JSONDecoder().decode(WeatherData.self, from: data)
-                let weatherInfo = """
+        fetchWeatherData(for: city) { result in
+            switch result {
+            case .success(let weatherData):
+                let info = """
                 Актуальная погода в городе \(weatherData.name):
                 - Температура: \(Int(weatherData.main.temp))°C
                 - Описание: \(weatherData.weather.first?.description ?? "")
@@ -107,19 +104,16 @@ class WeatherService {
                 - Давление: \(weatherData.main.pressure) гПа
                 - Скорость ветра: \(weatherData.wind.speed) м/с
                 """
-                DispatchQueue.main.async { completion(.success(weatherInfo)) }
-            } catch {
-                DispatchQueue.main.async {
-                    completion(.failure(error))
-                }
+                completion(.success(info))
+            case .failure(let error):
+                completion(.failure(error))
             }
-        }.resume()
+        }
     }
 
+    /// Извлекает название города из сообщения пользователя
     func extractCityName(from message: String) -> String? {
         let message = message.lowercased()
-
-        // Паттерны для поиска города
         let patterns = [
             "погода в ([а-яё\\-]+)",
             "погоду в ([а-яё\\-]+)",
@@ -127,7 +121,6 @@ class WeatherService {
             "какая погода в ([а-яё\\-]+)",
             "погода ([а-яё\\-]+)"
         ]
-
         for pattern in patterns {
             if let regex = try? NSRegularExpression(pattern: pattern, options: []),
                let match = regex.firstMatch(in: message, options: [], range: NSRange(message.startIndex..., in: message)),
@@ -135,14 +128,35 @@ class WeatherService {
                 return String(message[range])
             }
         }
-
         return nil
     }
 
+    /// Определяет является ли сообщение запросом о погоде
     func isWeatherRequest(_ message: String) -> Bool {
         let keywords = ["погод", "температур", "градус", "тепло", "холодно", "дожд", "снег", "солнечно"]
-        let lowerMessage = message.lowercased()
-        return keywords.contains { lowerMessage.contains($0) }
+        return keywords.contains { message.lowercased().contains($0) }
+    }
+
+    // MARK: - Private Methods
+
+    private func buildURL(for city: String) -> URL? {
+        let encoded = city.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? city
+        return URL(string: "\(baseURL)?q=\(encoded)&appid=\(apiKey)&units=metric&lang=ru")
+    }
+
+    private func performRequest(url: URL, completion: @escaping (Result<Data, Error>) -> Void) {
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                guard let data = data else {
+                    completion(.failure(WeatherError.noData))
+                    return
+                }
+                completion(.success(data))
+            }
+        }.resume()
     }
 }
-

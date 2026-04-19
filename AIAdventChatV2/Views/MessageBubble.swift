@@ -516,3 +516,13 @@ struct RAGSourcesView: View {
         )
     }
 }
+
+// MARK: - Preview
+
+#Preview {
+    VStack(spacing: 8) {
+        MessageBubble(message: Message(content: "Привет! Как дела?", isFromUser: true))
+        MessageBubble(message: Message(content: "Отлично, спасибо! Чем могу помочь?", isFromUser: false))
+    }
+    .padding()
+}

@@ -1128,3 +1128,10 @@ struct SettingsView: View {
         }
     }
 }
+
+
+// MARK: - Preview
+
+#Preview {
+    SettingsView(settings: Settings())
+}

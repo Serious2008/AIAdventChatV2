@@ -9,7 +9,8 @@ import Foundation
 
 class LocalModelService {
 
-    // Проверка доступности Python и необходимых библиотек
+    // MARK: - Public Methods
+
     func checkPythonAvailability(completion: @escaping (Result<String, Error>) -> Void) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
@@ -21,14 +22,19 @@ class LocalModelService {
 
         do {
             try process.run()
-            process.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8) {
-                if process.terminationStatus == 0 {
-                    completion(.success(output.trimmingCharacters(in: .whitespacesAndNewlines)))
-                } else {
-                    completion(.failure(NSError(domain: "LocalModelService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Python не найден"])))
+            DispatchQueue.global(qos: .userInitiated).async {
+                process.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                DispatchQueue.main.async {
+                    if let output = String(data: data, encoding: .utf8) {
+                        if process.terminationStatus == 0 {
+                            print("✅ Python найден: \(output.trimmingCharacters(in: .whitespacesAndNewlines))")
+                            completion(.success(output.trimmingCharacters(in: .whitespacesAndNewlines)))
+                        } else {
+                            print("❌ Python не найден")
+                            completion(.failure(NSError(domain: "LocalModelService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Python не найден"])))
+                        }
+                    }
                 }
             }
         } catch {
@@ -36,9 +42,7 @@ class LocalModelService {
         }
     }
 
-    // Проверка доступности модели
     func checkModelAvailability(completion: @escaping (Result<Bool, Error>) -> Void) {
-        // Проверяем наличие необходимых библиотек
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         process.arguments = ["python3", "-c", "import transformers; import torch; print('OK')"]
@@ -49,20 +53,24 @@ class LocalModelService {
 
         do {
             try process.run()
-            process.waitUntilExit()
-
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let output = String(data: data, encoding: .utf8), output.contains("OK") {
-                completion(.success(true))
-            } else {
-                completion(.success(false))
+            DispatchQueue.global(qos: .userInitiated).async {
+                process.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                DispatchQueue.main.async {
+                    if let output = String(data: data, encoding: .utf8), output.contains("OK") {
+                        print("✅ Модель доступна")
+                        completion(.success(true))
+                    } else {
+                        print("❌ Модель недоступна")
+                        completion(.success(false))
+                    }
+                }
             }
         } catch {
             completion(.failure(error))
         }
     }
 
-    // Суммаризация текста локально
     func summarize(
         text: String,
         progressCallback: ((String) -> Void)? = nil,
@@ -209,7 +217,8 @@ class LocalModelService {
         }
     }
 
-    // Установка зависимостей
+    // MARK: - Private Methods
+
     func installDependencies(progressCallback: @escaping (String) -> Void, completion: @escaping (Result<Void, Error>) -> Void) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
